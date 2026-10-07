@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Funzionalità di Jarvis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f7f9; --carta: #ffffff; --testo: #1b1f27; --tenue: #5c6575; --linea: #e3e6eb;
+    --accento: #2563eb; --accento-chiaro: #e8efff; --verde: #0f8a5f; --verde-chiaro: #e3f5ee;
+    --ambra: #a35a00; --ambra-chiaro: #fdf1e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --carta: #171b23; --testo: #e7eaf0; --tenue: #9aa3b2; --linea: #2a303b;
+      --accento: #7aa2ff; --accento-chiaro: #1c2740; --verde: #4cc79a; --verde-chiaro: #14302a;
+      --ambra: #f0b45c; --ambra-chiaro: #33260f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--testo); font: 14.5px/1.55 Inter, system-ui, sans-serif; }
+  .pagina { max-width: 980px; margin: 0 auto; padding: 40px 16px 60px; }
+  header { margin-bottom: 28px; }
+  .occhiello { color: var(--accento); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+  h1 { font-size: 34px; margin: 6px 0 8px; letter-spacing: -.02em; }
+  .sotto { color: var(--tenue); max-width: 720px; margin: 0; }
+  .numeri { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .numero { background: var(--carta); border: 1px solid var(--linea); border-radius: 10px; padding: 10px 14px; min-width: 130px; }
+  .numero b { display: block; font-size: 22px; }
+  .numero span { color: var(--tenue); font-size: 12.5px; }
+  h2 { font-size: 19px; margin: 34px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--linea); display: flex; align-items: center; gap: 10px; }
+  h2 .ico { font-size: 20px; }
+  .griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .scheda { background: var(--carta); border: 1px solid var(--linea); border-radius: 12px; padding: 14px 16px; break-inside: avoid; }
+  .scheda h3 { margin: 0 0 4px; font-size: 15px; }
+  .scheda p { margin: 0 0 8px; color: var(--tenue); font-size: 13.5px; }
+  .es { display: block; font-size: 12.8px; background: var(--accento-chiaro); color: var(--testo); border-radius: 6px; padding: 3px 8px; margin-top: 4px; }
+  .es::before { content: "“"; } .es::after { content: "”"; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 99px; padding: 1px 8px; margin-left: 4px; vertical-align: 2px; }
+  .tag.diretto { background: var(--verde-chiaro); color: var(--verde); }
+  .tag.tg { background: var(--ambra-chiaro); color: var(--ambra); }
+  table { width: 100%; border-collapse: collapse; background: var(--carta); border: 1px solid var(--linea); border-radius: 12px; overflow: hidden; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--tenue); }
+  tr:last-child td { border-bottom: 0; }
+  code { font-family: "JetBrains Mono", monospace; font-size: 12.5px; }
+  .nota { background: var(--carta); border-left: 4px solid var(--accento); border-radius: 8px; padding: 12px 16px; color: var(--tenue); margin-top: 12px; }
+  footer { margin-top: 40px; color: var(--tenue); font-size: 12.5px; }
+  @media print {
+    @page { size: A4; margin: 14mm 12mm; }
+    body { background: #fff; font-size: 11.5px; }
+    .pagina { padding: 0; max-width: none; }
+    h1 { font-size: 28px; }
+    h2 { break-after: avoid; margin-top: 22px; }
+    .griglia { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .scheda { padding: 10px 12px; }
+    table { break-inside: auto; } tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="pagina">
+
+<header>
+  <div class="occhiello">Assistente personale · aggiornato al 4 ottobre 2026</div>
+  <h1>Cosa sa fare Jarvis</h1>
+  <p class="sotto">Jarvis gira sul PC e risponde a voce («Hey Jarvis»), dalla sua finestra e su Telegram. Il cervello è Gemini (3.5 Flash-Lite, con 3.1 Flash-Lite e 3.6 Flash di riserva): capisce la richiesta e sceglie da solo lo strumento giusto. Le frasi negli esempi sono indicative, si può parlare liberamente.</p>
+  <div class="numeri">
+    <div class="numero"><b>55</b><span>strumenti a disposizione di Gemini</span></div>
+    <div class="numero"><b>14</b><span>comandi diretti senza Gemini</span></div>
+    <div class="numero"><b>6</b><span>comandi Telegram</span></div>
+    <div class="numero"><b>3</b><span>modi d'uso: voce, finestra, Telegram</span></div>
+  </div>
+</header>
+
+<h2><span class="ico">🎙️</span>Come si usa</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Voce sul PC</h3><p>Parola di attivazione «Hey Jarvis» (openwakeword), trascrizione con Gemini e risposta parlata con la voce Diego (it-IT).</p></div>
+  <div class="scheda"><h3>Finestra sul desktop</h3><p>Interfaccia grafica con la chat, aperta dall'icona. Jarvis parte da solo all'accesso a Windows.</p></div>
+  <div class="scheda"><h3>Bot Telegram</h3><p>Messaggi di testo e vocali, foto, documenti e posizione. Risponde solo al tuo account: gli altri ricevono «Non ti conosco».</p></div>
+</div>
+
+<h2><span class="ico">🌐</span>Web e informazioni</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Cerca sul web</h3><p>Cerca e risponde a parole, per fatti recenti, persone, risultati e prezzi.</p><span class="es">chi ha vinto ieri il Bologna?</span></div>
+  <div class="scheda"><h3>Apri una ricerca su qualunque sito</h3><p>Apre in Chrome la ricerca già fatta: Google, YouTube, Maps, Wikipedia, Amazon, AliExpress, eBay, Subito, Vinted, Zalando, MediaWorld, IKEA… e altri ~13.500 siti tramite i bang di DuckDuckGo.</p><span class="es">trovami su AliExpress una tastiera retroilluminata</span></div>
+  <div class="scheda"><h3>Notizie</h3><p>Ultimi titoli, in generale o su un argomento.</p><span class="es">ultime notizie sulla Formula 1</span></div>
+  <div class="scheda"><h3>Meteo <span class="tag diretto">diretto</span></h3><p>Tempo attuale e previsioni di oggi e domani per qualunque città (Open-Meteo).</p><span class="es">che tempo fa domani a Bologna</span></div>
+  <div class="scheda"><h3>Leggi una pagina</h3><p>Scarica un sito o un link e lo riassume o risponde su quello.</p><span class="es">riassumimi questo articolo: …</span></div>
+  <div class="scheda"><h3>Apri un sito</h3><p>Apre un indirizzo nel browser.</p><span class="es">apri github.com</span></div>
+</div>
+
+<h2><span class="ico">✈️</span>Viaggi e spostamenti</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Voli</h3><p>Prezzi e orari di tutte le compagnie (Google Flights tramite SerpApi, Ryanair di riserva). Può aprire Google Flights o Ryanair già compilati.</p><span class="es">quanto costa un volo Bologna–Barcellona il 15 novembre?</span></div>
+  <div class="scheda"><h3>Treni Trenitalia</h3><p>Orari reali e prezzi di Frecciarossa, Intercity e regionali; apre il sito Trenitalia già compilato.</p><span class="es">treni da Bologna a Milano domani mattina</span></div>
+  <div class="scheda"><h3>Ritardi in tempo reale</h3><p>Ritardo, posizione e binario di un treno di oggi, Italo compreso (ViaggiaTreno).</p><span class="es">il Frecciarossa 9531 è in ritardo?</span></div>
+  <div class="scheda"><h3>Segui un treno <span class="tag diretto">diretto</span></h3><p>Lo tiene d'occhio e avvisa su Telegram di ritardi, cancellazioni e binario. Si può vedere la lista e smettere di seguirlo.</p><span class="es">seguimi il regionale 17521</span></div>
+  <div class="scheda"><h3>Bus TPER</h3><p>Prossimi bus a una fermata di Bologna e provincia, in tempo reale o da un'ora precisa.</p><span class="es">quando passa il 20 in via Irnerio?</span></div>
+  <div class="scheda"><h3>Distanze e percorsi</h3><p>Km e tempo di viaggio senza aprire niente, oppure Google Maps con il percorso in auto, a piedi, in bici o con i mezzi.</p><span class="es">quanto ci metto in macchina a Firenze?</span></div>
+  <div class="scheda"><h3>Alloggi</h3><p>Appartamenti e stanze per certe date, con prezzo totale e per notte e il tipo (INTERO o STANZA). Apre Airbnb o Booking solo se lo chiedi.</p><span class="es">trovami un appartamento a Roma dal 3 al 5 dicembre</span></div>
+  <div class="scheda"><h3>Dove ho parcheggiato <span class="tag diretto">diretto</span></h3><p>Su Telegram premi «📍 Ho parcheggiato» e salva la posizione. Puoi aggiungere una nota (piano, posto, ticket) e poi chiedere dov'è la macchina: arriva il segnaposto sulla mappa.</p><span class="es">dov'è la macchina?</span></div>
+</div>
+
+<h2><span class="ico">📬</span>Posta, calendario e attività</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Leggere le mail</h3><p>Elenca le ultime mail di Gmail, apre il testo completo e legge gli allegati (PDF, immagini, file di testo).</p><span class="es">cosa c'è nella fattura che mi è arrivata?</span></div>
+  <div class="scheda"><h3>Archiviare e scrivere mail</h3><p>Archivia senza cancellare, prepara risposte e mail nuove come bozze. L'invio avviene <b>solo</b> con <code>/invia</code> su Telegram, mai da solo.</p><span class="es">rispondi al prof che va bene giovedì</span></div>
+  <div class="scheda"><h3>Calendario Google <span class="tag diretto">diretto</span></h3><p>Elenca gli impegni (comprese le lezioni UniBo), crea, sposta e cancella eventi. Per cancellare chiede sempre conferma.</p><span class="es">che impegni ho domani?</span></div>
+  <div class="scheda"><h3>Promemoria <span class="tag diretto">diretto</span></h3><p>Crea promemoria che arrivano su Telegram all'ora giusta; li elenca e li cancella.</p><span class="es">ricordami alle 18 di chiamare la mamma</span></div>
+  <div class="scheda"><h3>Attività su Notion <span class="tag diretto">diretto</span></h3><p>Database «Attività» (to-do, esami, scadenze): elenca per scadenza, aggiunge e segna come fatte.</p><span class="es">cosa devo fare questa settimana?</span></div>
+</div>
+
+<h2><span class="ico">📚</span>Studio, appunti e memoria</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Appunti e guide su Notion</h3><p>Cerca nei titoli e dentro il testo delle 93 pagine di appunti e legge le pagine intere. Le formule arrivano in LaTeX.</p><span class="es">cosa dicono i miei appunti sui rotismi epicicloidali?</span></div>
+  <div class="scheda"><h3>Copia degli appunti in Obsidian</h3><p>Ogni 3 ore aggiorna una copia di sola lettura degli appunti in <code>obsidian\Jarvis\Notion\</code>, con wikilink, tabelle e formule convertiti.</p></div>
+  <div class="scheda"><h3>Articoli salvati</h3><p>Elenca, cerca e legge gli articoli salvati col Web Clipper, per riassumerli o rispondere su di essi.</p><span class="es">cosa avevo salvato sull'intelligenza artificiale?</span></div>
+  <div class="scheda"><h3>Memoria permanente</h3><p>Ricorda fatti stabili su di te (preferenze, persone, abitudini) nella nota Obsidian <code>Memoria.md</code>, e li dimentica su richiesta.</p><span class="es">ricordati che il mio indirizzo di casa è …</span></div>
+  <div class="scheda"><h3>Diario delle conversazioni</h3><p>Ogni scambio finisce nel diario giornaliero in Obsidian; può rileggere un giorno o cercare nei giorni passati.</p><span class="es">cosa ti avevo chiesto ieri sui voli?</span></div>
+  <div class="scheda"><h3>Foto <span class="tag tg">Telegram</span></h3><p>Le foto finiscono in <code>obsidian\raw</code> con un riassunto; se la didascalia contiene una domanda, risponde.</p><span class="es">[foto della lavagna] cosa c'è scritto qui?</span></div>
+  <div class="scheda"><h3>Documenti <span class="tag tg">Telegram</span></h3><p>PDF, testi e altri file fino a 20 MB: la didascalia è la domanda, senza didascalia arriva un riassunto.</p><span class="es">[PDF] quando scade?</span></div>
+</div>
+
+<h2><span class="ico">💻</span>Controllo del PC</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Aprire app</h3><p>Blocco note, calcolatrice, Esplora risorse, Paint, Impostazioni, Task Manager, Chrome, Edge, Spotify, Word, Excel, PowerPoint, VS Code, Terminale e altre app installate.</p><span class="es">apri Spotify</span></div>
+  <div class="scheda"><h3>Cercare e aprire file</h3><p>Cerca per nome in Desktop, Documenti e Download (anche OneDrive) e apre file o cartelle.</p><span class="es">trova il file della tesina e aprilo</span></div>
+  <div class="scheda"><h3>Volume <span class="tag diretto">diretto</span></h3><p>Alza, abbassa o mette in muto l'audio.</p><span class="es">abbassa il volume</span></div>
+  <div class="scheda"><h3>Musica <span class="tag diretto">diretto</span></h3><p>Play/pausa, brano successivo e precedente per qualunque lettore.</p><span class="es">prossima canzone</span></div>
+  <div class="scheda"><h3>Blocca il PC <span class="tag diretto">diretto</span></h3><p>Blocca lo schermo.</p><span class="es">blocca il computer</span></div>
+  <div class="scheda"><h3>Screenshot <span class="tag tg">Telegram</span></h3><p>Con <code>/schermo</code> manda una foto di tutti gli schermi del PC.</p></div>
+</div>
+
+<h2><span class="ico">⚡</span>Comandi diretti (rispondono subito, senza Gemini)</h2>
+<p class="sotto">Frasi riconosciute in locale: rispondono all'istante e non consumano richieste Gemini. La frase deve essere solo il comando.</p>
+<table style="margin-top:12px">
+  <tr><th>Cosa fa</th><th>Frasi riconosciute</th></tr>
+  <tr><td>Consumi</td><td>quanto ho consumato · consumi · quante richieste mi restano</td></tr>
+  <tr><td>Parcheggio</td><td>dove ho parcheggiato · dov'è la macchina · dove sta la macchina</td></tr>
+  <tr><td>Attività Notion</td><td>cosa devo fare · le mie attività · cose da fare · to do (anche «oggi», «questa settimana»)</td></tr>
+  <tr><td>Impegni</td><td>cosa ho oggi/domani · che impegni ho domani · agenda di oggi</td></tr>
+  <tr><td>Meteo</td><td>che tempo fa · meteo · previsioni (oggi/domani, a una città; Bologna se non la dici)</td></tr>
+  <tr><td>Promemoria</td><td>i miei promemoria · elenca i promemoria</td></tr>
+  <tr><td>Treni seguiti</td><td>che treni stai seguendo</td></tr>
+  <tr><td>Volume</td><td>alza il volume · abbassa il volume · muto · togli l'audio</td></tr>
+  <tr><td>Musica</td><td>pausa · play · riprendi la musica · prossima canzone · salta la canzone · canzone precedente</td></tr>
+  <tr><td>PC</td><td>blocca il pc / computer / schermo</td></tr>
+  <tr><td>Ora e app</td><td>che ore sono · che giorno è · apri / avvia + un'app della lista o un sito col dominio (es. «apri youtube.com»)</td></tr>
+</table>
+
+<h2><span class="ico">✉️</span>Comandi Telegram</h2>
+<table>
+  <tr><th>Comando</th><th>Cosa fa</th></tr>
+  <tr><td><code>/start</code>, <code>/nuova</code></td><td>Azzera la conversazione e mostra il pulsante «📍 Ho parcheggiato»</td></tr>
+  <tr><td><code>/promemoria</code></td><td>Elenca i promemoria in attesa</td></tr>
+  <tr><td><code>/consumi</code></td><td>Richieste Gemini di oggi e ricerche SerpApi rimaste nel mese, senza spendere una richiesta</td></tr>
+  <tr><td><code>/treni</code></td><td>Treni che Jarvis sta seguendo</td></tr>
+  <tr><td><code>/schermo</code></td><td>Screenshot del PC</td></tr>
+  <tr><td><code>/invia N</code></td><td>Invia la bozza di mail numero N: è l'unico modo in cui parte una mail</td></tr>
+  <tr><td>📍 posizione</td><td>Salva il parcheggio</td></tr>
+  <tr><td>🎙️ vocale</td><td>Trascrive con Gemini e risponde come a un messaggio scritto</td></tr>
+</table>
+
+<h2><span class="ico">⚙️</span>In background</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Avvisi automatici</h3><p>Ogni 20 secondi controlla promemoria scaduti e treni seguiti, e scrive su Telegram.</p></div>
+  <div class="scheda"><h3>Rotazione dei modelli</h3><p>Se Gemini risponde 429 (limite al minuto), mette in pausa quel modello e passa al successivo: 3.5 Flash-Lite → 3.1 Flash-Lite → 3.6 Flash. Se nessuno risponde, spiega l'errore.</p></div>
+  <div class="scheda"><h3>Consumi</h3><p>Conta le richieste Gemini per modello e legge le ricerche SerpApi rimaste (250 al mese per voli e alloggi).</p></div>
+</div>
+
+<div class="nota">Non fa (scelte fatte): non invia mail senza <code>/invia</code>, non modifica le pagine Notion né aggiunge note veloci, non salva i documenti ricevuti nel vault, non apre Airbnb o Booking di sua iniziativa. Riepilogo del mattino, avviso «esci adesso», allarme prezzo voli e controllo del PC a distanza sono stati scartati, almeno per ora.</div>
+
+<footer>Jarvis · <code>Desktop\prog\jarvis</code> · elenco ricavato dal codice il 4 ottobre 2026</footer>
+</div>
+</body>
+</html>
