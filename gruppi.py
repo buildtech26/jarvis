@@ -1,8 +1,8 @@
 """Quali strumenti (e quali regole del prompt) mandare a Gemini per una domanda.
 
 Con tutti gli strumenti ogni chiamata pesava ~7.200 token di dichiarazioni più ~1.700 di regole, e il modello
-Flash-Lite sceglie peggio quando la lista è lunga. Qui le parole della domanda (e della precedente, per i seguiti
-come "e domani?") scelgono i gruppi; il gruppo base (web, meteo, notizie, browser, memoria) c'è sempre e basta da
+Flash-Lite sceglie peggio quando la lista è lunga. Qui le parole della domanda (più l'ultimo argomento delle 3
+precedenti, per i seguiti come "e domani?" o "fammeli vedere") scelgono i gruppi; il gruppo base (web, meteo, notizie, browser, memoria) c'è sempre e basta da
 solo per le domande generali. Se con il solo base Gemini risponde "non posso", brain.py riprova con TUTTI.
 Le prove sono in prova_gruppi.py: da rilanciare dopo ogni modifica a parole o gruppi.
 """
@@ -45,7 +45,7 @@ cancella_promemoria""",
         r"ritard|stazion|\bbus\b|autobus|fermat|\blinea\b|\btper\b|passa il|\bdist[ao]|distanz|\bkm\b|quanto ci metto|"
         r"percors|strada|mappa|maps|come (?:ci )?arriv|arrivare|andare a|partir|partenz|viagg|"
         r"da qualche parte|\bmet[ae]\b|dove (?:posso )?andare|weekend|fine settimana|vacanz|\bponte\b|giorni (?:a|in|fuori)|"
-        r"all'estero|fuori (?:dall')?italia|fuggire|scappare",
+        r"all'estero|fuori (?:dall')?italia|fuggire|scappare|\bnott[ei]\b|\bgiorni\b",
         ["cerca_voli", "esplora_voli", "cerca_treni", "mostra_voli", "mostra_treni", "distanza", "mostra_percorso", "stato_treno",
          "segui_treno", "treni_seguiti", "smetti_di_seguire", "bus_in_arrivo"],
         """- prezzi e orari dei voli: cerca_voli con i codici IATA (tutti gli aeroporti della città); se l'utente non dice da \
@@ -54,7 +54,10 @@ orario e se è diretto, senza elencare tutto. Avvisa che le altre compagnie non 
 risultato dice testualmente "solo Ryanair"; se dice "Google Flights (tutte le compagnie)" non aggiungere avvisi
 - destinazione NON scelta ("3 giorni da qualche parte", "dove vado a novembre", "un weekend all'estero", "mete \
 economiche"): esplora_voli SUBITO, senza chiedere conferme e senza cerca_web; poi proponi 3-5 mete con prezzo e date. \
-Non rimandare l'utente a cercare da solo su Google Flights
+Non rimandare l'utente a cercare da solo su Google Flights. Se cambia notti o periodo, richiama esplora_voli; \
+"mostrami dal sito" = mostra_voli con arrivo e data vuoti. Prezzi, mete e compagnie SOLO dal risultato: se \
+l'utente chiede quali compagnie hai guardato, di' che hai cercato su Ryanair e su Google Flights (tutte le \
+compagnie) e cita le alternative con ALTRE compagnie del risultato
 - treni, orari e prezzi ("che treno prendo", "come arrivo a Roma", "per arrivare in tempo all'aeroporto"): \
 cerca_treni con città o stazioni; se l'utente deve arrivare entro un'ora (un volo, un appuntamento) passa \
 arrivare_entro, lasciando margine. Per prendere un volo l'arrivo è la stazione dell'aeroporto, non la città \
@@ -158,6 +161,17 @@ def scegli(testi: list[str]) -> list[str]:
     """I gruppi per questi testi (domanda attuale e precedenti). Solo ['base'] = nessun gruppo riconosciuto."""
     testo = " ".join(testi).replace("’", "'")
     return ["base"] + [nome for nome, schema in _SCHEMI.items() if schema.search(testo)]
+
+
+def per_conversazione(domande: list[str]) -> list[str]:
+    """I gruppi dell'ultima domanda più quelli dell'ultima fra le 3 precedenti che ne aveva: "e domani?",
+    "fammeli vedere", "puoi cercare per tre notti" non dicono l'argomento, che resta quello di prima."""
+    scelti = scegli(domande[-1:])
+    for precedente in reversed(domande[-4:-1]):
+        prima = scegli([precedente])
+        if len(prima) > 1:
+            return scelti + [g for g in prima if g not in scelti]
+    return scelti
 
 
 def strumenti_e_regole(gruppi: list[str], per_nome: dict) -> tuple[list, str]:

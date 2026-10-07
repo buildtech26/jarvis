@@ -172,9 +172,7 @@ class Jarvis:
         return risposta
 
     def _chiedi_gemini(self, modello: str, log) -> str:
-        # la domanda e la precedente dell'utente: "e domani?" dopo una domanda sui treni tiene i treni
-        domande = [m["content"] for m in self.storia if m["role"] == "user"][-2:]
-        scelti = gruppi.scegli(domande)
+        scelti = gruppi.per_conversazione([m["content"] for m in self.storia if m["role"] == "user"])
         risposta = self._giro_gemini(modello, scelti, log)
         if scelti == ["base"] and not _usati and gruppi.RINUNCIA.search(risposta):
             # nessuna parola aveva indicato un gruppo e il modello dice di non poterlo fare: forse lo strumento

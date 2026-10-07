@@ -74,6 +74,11 @@ CASI = [
     (["che treno prendo per Milano domani?", "e dopodomani?"], "cerca_treni"),
     (["quanto ho speso questo mese?", "e il mese scorso?"], "spese_riepilogo"),
     (["ho mail nuove?", "aprimi la seconda"], "apri_mail"),
+    # la conversazione vera del 07/10: due domande senza indizi dopo quella sui voli
+    (["un viaggio di 4 giorni fuori l'italia a metà novembre", "puoi farmi vedere dal sito", "hai guardato solo ryanair?",
+      "mostrami dal sito"], "mostra_voli"),
+    (["un viaggio di 4 giorni fuori l'italia a metà novembre", "puoi farmi vedere dal sito", "puoi cercare per tre notti"],
+     "esplora_voli"),
 ]
 
 # domande che devono restare leggere: se attivano tutti i gruppi qualcosa è troppo largo
@@ -93,7 +98,7 @@ def main() -> int:
     tutti = len(tools.TUTTI)
     pesi = []
     for domande, atteso in CASI:
-        scelti = gruppi.scegli(domande)
+        scelti = gruppi.per_conversazione(domande)
         strumenti, _ = gruppi.strumenti_e_regole(scelti, tools.PER_NOME)
         nomi = [f.__name__ for f in strumenti]
         if atteso not in tools.PER_NOME:
