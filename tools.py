@@ -28,6 +28,7 @@ import quota
 import ricerche
 import ritardi
 import siti
+import spese
 import tper
 import treni
 import voli
@@ -341,4 +342,6 @@ if calendario.configurato():
     TUTTI += calendario.STRUMENTI
 if notion.configurato():
     TUTTI += notion.STRUMENTI
+if spese.configurato():
+    TUTTI += spese.STRUMENTI
 PER_NOME = {f.__name__: f for f in TUTTI}

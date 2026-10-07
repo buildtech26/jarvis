@@ -18,6 +18,7 @@ import promemoria
 import quota
 import ritardi
 import siti
+import spese
 import tools
 
 load_dotenv()
@@ -90,6 +91,9 @@ per un giorno preciso, cerca_diario per argomento
 ricerca su X"): ricerca_e_salva, non ricorda e non cerca_web. Senza richiesta di salvare usa cerca_web
 - analisi di un'azienda, di un titolo o di un ETF ("analizza Apple", "com'è messa Eni", "Nvidia è cara?", "bandiere \
 rosse su Tesla"): analizza_azienda, non cerca_web né ricerca_e_salva; per il solo prezzo o una notizia basta cerca_web
+- soldi dell'utente ("quanto ho speso", "quanto ho sul conto", budget, categorie, patrimonio): spese_riepilogo; per \
+un esercente, un giorno o un periodo preciso ("quanto ho speso da Esselunga", "cosa ho pagato ieri"): movimenti_spese. \
+Puoi solo leggere: non puoi aggiungere spese né aggiornare i movimenti dalla banca
 - file di testo ("crea/scrivimi un file", "fammi una lista e salvala", "scrivi una bozza in un file"): crea_file con \
 il testo già scritto per intero; "aggiungi X alla lista/al file Y": aggiungi_a_file; "leggimi/aprimi il file Y": \
 leggi_file; "che file hai creato?": elenca_file; "cancella il file Y": cancella_file. Le liste della spesa e simili \
@@ -137,6 +141,10 @@ COMANDI = [
      "multimediale", lambda m: tools.multimediale("avanti")),
     (r"(?:canzone|traccia|brano) precedente", "multimediale", lambda m: tools.multimediale("indietro")),
     (r"blocca (?:il )?(?:pc|computer|schermo)", "blocca_pc", lambda m: tools.blocca_pc()),
+    (r"(?:quanto ho speso|spese di) oggi", "spese_riepilogo", lambda m: spese.in_breve("oggi")),
+    (r"(?:quanto ho speso|spese del)(?: questo| nel)? mese", "spese_riepilogo", lambda m: spese.in_breve("mese")),
+    (r"(?:quanto ho sul conto|(?:qual è il |dimmi il )?(?:mio )?saldo(?: del conto)?)", "spese_riepilogo",
+     lambda m: spese.in_breve("saldo")),
 ]
 RICORDA = re.compile(r"^(?:jarvis,?\s+)?(?:ricordati|ricorda|tieni a mente|memorizza)\b(?:\s+che)?\s+(.+)", re.I | re.S)
 
