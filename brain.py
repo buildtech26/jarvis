@@ -11,6 +11,7 @@ import threading
 from dotenv import load_dotenv
 
 import calendario
+import gruppi
 import memoria
 import notion
 import parcheggio
@@ -35,77 +36,16 @@ con un tocco di ironia britannica. Le tue risposte possono essere lette ad alta 
 niente markdown, niente link lunghi, al massimo tre frasi salvo richiesta esplicita. Scrivi numeri, prezzi e orari \
 in cifre (138 €, 12:10, Frecciarossa 9409), mai in lettere: la sintesi vocale li legge già bene.
 Hai accesso a internet e al PC SOLO tramite gli strumenti, e devi usarli:
-- domande su fatti recenti, persone, risultati sportivi, prezzi o qualsiasi cosa tu non sappia con certezza: cerca_web \
-(cerchi tu e rispondi a parole)
-- se l'utente vuole VEDERE i risultati ("aprimi", "fammi vedere", "cerca su Chrome/Google/YouTube/Amazon/Maps", \
-"apri Chrome e cerca", "trovami su AliExpress/eBay/..."): cerca_nel_browser con sito = il sito nominato, poi rispondi solo con una frase breve. Non aprire \
-mai il browser se l'utente non l'ha chiesto: per rispondere a una domanda usa gli altri strumenti
-- notizie: notizie; meteo: meteo
-- leggere o riassumere un sito o un link preciso: leggi_pagina
-- "apri ..." un programma: apri_app; un sito: apri_sito; un file: cerca_file e poi apri_file
-- volume, musica, blocco schermo: volume, multimediale, blocca_pc
-- "ricordami ...": crea_promemoria, calcolando la data dall'ora attuale; elenco e cancellazione: lista_promemoria, \
-cancella_promemoria
-- prezzi e orari dei voli: cerca_voli con i codici IATA (tutti gli aeroporti della città); se l'utente non dice da \
-dove parte, usa l'aeroporto indicato nella memoria o altrimenti Bologna (BLQ), e dillo. Riporta prezzo, compagnia, \
-orario e se è diretto, senza elencare tutto. Avvisa che le altre compagnie non sono state controllate SOLO se il \
-risultato dice testualmente "solo Ryanair"; se dice "Google Flights (tutte le compagnie)" non aggiungere avvisi
-- treni, orari e prezzi ("che treno prendo", "come arrivo a Roma", "per arrivare in tempo all'aeroporto"): \
-cerca_treni con città o stazioni; se l'utente deve arrivare entro un'ora (un volo, un appuntamento) passa \
-arrivare_entro, lasciando margine. Per prendere un volo l'arrivo è la stazione dell'aeroporto, non la città \
-(FCO = "Fiumicino Aeroporto", BLQ = "Bologna Aeroporto", MXP = "Malpensa Aeroporto"), e arrivare_entro è almeno \
-1h30 prima del decollo; per gli aeroporti senza stazione (es. Ciampino) cerca fino alla stazione della città e \
-avvisa che serve ancora il bus. Indica \
-treno, orari e prezzo come scritti nel risultato. Non dare mai un orario o un numero di treno che non viene da \
-cerca_treni: niente cerca_web per gli orari dei treni
-- se l'utente vuole VEDERE o aprire voli o treni ("aprimi Ryanair", "fammi vedere i voli", "apri Trenitalia"): \
-mostra_voli o mostra_treni con partenza, arrivo e data (riprendili dalla conversazione), mai cerca_nel_browser. \
-Per i treni ricorda che deve solo premere Cerca
-- appartamenti, case, stanze, "dove dormo a ...", Airbnb, Booking: cerca_alloggi; per VEDERLI o aprire Airbnb/Booking \
-mostra_alloggi, mai cerca_nel_browser
-- ritardi ("il mio treno è in ritardo?", "da che binario parte?"): stato_treno con il numero del treno (se non lo \
-sai, riprendilo dalla conversazione o trovalo con cerca_treni). "Avvisami se il treno è in ritardo", "seguimi il \
-treno": segui_treno con numero, data, ora di partenza e stazione dell'utente; treni_seguiti e smetti_di_seguire \
-per elenco e cancellazione
-- bus a Bologna ("quando passa il 20", "prossimo bus alla fermata ..."): bus_in_arrivo con il nome della fermata o \
-della via e la linea se detta; se l'utente non dice la fermata usa quella indicata nella memoria, altrimenti chiedila. \
-Riporta solo i prossimi 2-3 passaggi e di' se l'orario è da GPS o da orario
-- "quanto ho consumato", richieste Gemini, quota, ricerche SerpApi: consumi
-- impegni e appuntamenti: eventi_calendario (per "oggi" usa da 00:00 a 23:59 di oggi), crea_evento, sposta_evento; \
-cancella_evento solo dopo un sì esplicito dell'utente. "Ricordami" = promemoria su Telegram; "segna/metti in \
-calendario/appuntamento" = evento
-- Notion: per domande sugli appunti e le guide allo studio dell'utente usa cerca_notion con le parole chiave \
-(cerca anche dentro il testo); se i pezzi trovati non bastano, leggi_notion con l'id. Rispondi basandoti sul \
-testo letto e di' da quale pagina viene. To-do, esami, consegne, "cosa devo fare": \
-attivita, aggiungi_attivita, completa_attivita. "Aggiungi alle cose da fare" = attività Notion, non promemoria
-- mail: leggi_mail, apri_mail, archivia_mail; per il contenuto di un allegato (PDF, immagini) leggi_allegato; per rispondere o scrivere usa prepara_risposta o scrivi_mail, che creano \
-solo una bozza. Non puoi inviare mail: dopo la bozza, ripeti il numero e ricorda di scrivere /invia N per mandarla.
-- articoli che l'utente ha salvato ("ho salvato", "i miei articoli", "quell'articolo su..."): cerca_articoli, \
-elenca_articoli, leggi_articolo. Sono diversi dalla ricerca web
-- conversazioni dei giorni passati ("cosa ti avevo chiesto ieri", "quel volo che avevamo guardato"): leggi_diario \
-per un giorno preciso, cerca_diario per argomento
-- memoria permanente: usa ricorda quando l'utente chiede di ricordare qualcosa o dice un fatto stabile su di sé \
-(persone, preferenze, abitudini, luoghi); non salvare chiacchiere, cose passeggere o dati sensibili come password. \
-"Dimentica che..." = dimentica. Non dire mai "lo terrò a mente" o "memorizzato" senza aver chiamato ricorda
-- ricerca da salvare ("cerca info su X e salvale", "fai una ricerca su X e mettila in Obsidian", "memorizza una \
-ricerca su X"): ricerca_e_salva, non ricorda e non cerca_web. Senza richiesta di salvare usa cerca_web
-- analisi di un'azienda, di un titolo o di un ETF ("analizza Apple", "com'è messa Eni", "Nvidia è cara?", "bandiere \
-rosse su Tesla"): analizza_azienda, non cerca_web né ricerca_e_salva; per il solo prezzo o una notizia basta cerca_web
-- soldi dell'utente ("quanto ho speso", "quanto ho sul conto", budget, categorie, patrimonio): spese_riepilogo; per \
-un esercente, un giorno o un periodo preciso ("quanto ho speso da Esselunga", "cosa ho pagato ieri"): movimenti_spese. \
-Puoi solo leggere: non puoi aggiungere spese né aggiornare i movimenti dalla banca
-- file di testo ("crea/scrivimi un file", "fammi una lista e salvala", "scrivi una bozza in un file"): crea_file con \
-il testo già scritto per intero; "aggiungi X alla lista/al file Y": aggiungi_a_file; "leggimi/aprimi il file Y": \
-leggi_file; "che file hai creato?": elenca_file; "cancella il file Y": cancella_file. Le liste della spesa e simili \
-sono file, non attività Notion né promemoria
+{regole}
 Non dire mai che non hai internet o che non puoi fare qualcosa che uno strumento fa: chiama lo strumento. \
 Non inventare dati: se uno strumento non trova nulla, dillo.
 Adesso è {ora} ({iso})."""
 
 
-def _sistema() -> str:
-    """Prompt di sistema con ora attuale e memoria, riletta ogni volta: la nota può essere stata modificata in Obsidian."""
-    testo = SISTEMA.format(ora=tools.data_ora(), iso=f"{datetime.datetime.now():%Y-%m-%d %H:%M}")
+def _sistema(regole: str) -> str:
+    """Prompt di sistema con le regole dei soli strumenti scelti (gruppi.py), l'ora attuale e la memoria, riletta ogni
+    volta: la nota può essere stata modificata in Obsidian."""
+    testo = SISTEMA.format(regole=regole, ora=tools.data_ora(), iso=f"{datetime.datetime.now():%Y-%m-%d %H:%M}")
     ricordi = memoria.contenuto()
     if ricordi:
         testo += f"\n\nCose che sai su {NOME_UTENTE} (dalla tua memoria permanente):\n{ricordi}"
@@ -232,11 +172,25 @@ class Jarvis:
         return risposta
 
     def _chiedi_gemini(self, modello: str, log) -> str:
+        # la domanda e la precedente dell'utente: "e domani?" dopo una domanda sui treni tiene i treni
+        domande = [m["content"] for m in self.storia if m["role"] == "user"][-2:]
+        scelti = gruppi.scegli(domande)
+        risposta = self._giro_gemini(modello, scelti, log)
+        if scelti == ["base"] and not _usati and gruppi.RINUNCIA.search(risposta):
+            # nessuna parola aveva indicato un gruppo e il modello dice di non poterlo fare: forse lo strumento
+            # giusto era fuori dal gruppo base. Si riprova una volta con tutti
+            log(f"  [gruppi] risposta di rinuncia con il solo gruppo base, riprovo con tutti: {risposta[:60]!r}")
+            risposta = self._giro_gemini(modello, gruppi.TUTTI, log)
+        return risposta
+
+    def _giro_gemini(self, modello: str, scelti: list[str], log) -> str:
         from google.genai import types
 
+        strumenti, regole = gruppi.strumenti_e_regole(scelti, tools.PER_NOME)
+        log(f"  [gruppi] {', '.join(scelti)} ({len(strumenti)} strumenti)")
         config = types.GenerateContentConfig(
-            system_instruction=_sistema(),
-            tools=tools.TUTTI,
+            system_instruction=_sistema(regole),
+            tools=strumenti,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             thinking_config=types.ThinkingConfig(thinking_level="low"),
             http_options=types.HttpOptions(timeout=20000),
