@@ -86,16 +86,21 @@ def cerca_nel_browser(cosa: str, sito: str = "google") -> str:
     return f"Aperta in Chrome la ricerca '{cosa}' su {sito}."
 
 
-def mostra_voli(partenza: str, arrivo: str, data: str, ritorno: str = "", sito: str = "google") -> str:
+def mostra_voli(partenza: str = "BLQ", arrivo: str = "", data: str = "", ritorno: str = "", sito: str = "google") -> str:
     """Apre in Chrome la pagina con i voli già cercati, quando l'utente vuole VEDERE i voli o aprire Google Flights/Ryanair.
+    Dopo esplora_voli (destinazione non scelta) lascia arrivo e data vuoti: si apre la pagina Esplora di Google.
+    Mai codici inventati per un'area (niente 'EUR').
 
     Args:
         partenza: codici IATA di partenza separati da virgola (Roma = 'FCO,CIA')
-        arrivo: codici IATA di arrivo, stesso formato
-        data: giorno di partenza 'AAAA-MM-GG'
+        arrivo: codici IATA di arrivo, stesso formato; vuoto per la pagina Esplora dell'ultima esplora_voli
+        data: giorno di partenza 'AAAA-MM-GG'; vuoto insieme ad arrivo
         ritorno: giorno di ritorno 'AAAA-MM-GG' se andata e ritorno, altrimenti vuoto
         sito: 'google' (Google Flights, tutte le compagnie) oppure 'ryanair' se l'utente nomina Ryanair
     """
+    if not arrivo.strip() or not data.strip():
+        _apri_nel_browser(voli.link_esplora())
+        return "Aperta in Chrome la pagina Esplora di Google Flights con le mete dell'ultima ricerca."
     _apri_nel_browser(voli.link_voli(partenza, arrivo, data, ritorno, sito))
     nome = "Ryanair" if sito.lower().strip() == "ryanair" else "Google Flights"
     return f"Aperti in Chrome su {nome} i voli {partenza} → {arrivo} del {data}."
@@ -330,7 +335,7 @@ def blocca_pc() -> str:
 TUTTI = [
     cerca_web, cerca_nel_browser, notizie, meteo, leggi_pagina, apri_sito, apri_app, cerca_file, apri_file, volume, multimediale, blocca_pc,
     promemoria.crea_promemoria, promemoria.lista_promemoria, promemoria.cancella_promemoria,
-    voli.cerca_voli, treni.cerca_treni, mostra_voli, mostra_treni, mappe.distanza, mostra_percorso,
+    voli.cerca_voli, voli.esplora_voli, treni.cerca_treni, mostra_voli, mostra_treni, mappe.distanza, mostra_percorso,
     alloggi.cerca_alloggi, mostra_alloggi,
     ritardi.stato_treno, ritardi.segui_treno, ritardi.treni_seguiti, ritardi.smetti_di_seguire,
     tper.bus_in_arrivo, *parcheggio.STRUMENTI, quota.consumi, memoria.ricorda, memoria.dimentica, *articoli.STRUMENTI, *diario.STRUMENTI,

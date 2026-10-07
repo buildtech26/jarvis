@@ -43,13 +43,18 @@ cancella_promemoria""",
     "viaggi": (
         r"\bvol[oi]\b|aere|aeroport|ryanair|easyjet|wizz|\bitalo\b|tren[oi]|frecci|regionale|trenitalia|binari|"
         r"ritard|stazion|\bbus\b|autobus|fermat|\blinea\b|\btper\b|passa il|\bdist[ao]|distanz|\bkm\b|quanto ci metto|"
-        r"percors|strada|mappa|maps|come (?:ci )?arriv|arrivare|andare a|partir|partenz|viagg",
-        ["cerca_voli", "cerca_treni", "mostra_voli", "mostra_treni", "distanza", "mostra_percorso", "stato_treno",
+        r"percors|strada|mappa|maps|come (?:ci )?arriv|arrivare|andare a|partir|partenz|viagg|"
+        r"da qualche parte|\bmet[ae]\b|dove (?:posso )?andare|weekend|fine settimana|vacanz|\bponte\b|giorni (?:a|in|fuori)|"
+        r"all'estero|fuori (?:dall')?italia|fuggire|scappare",
+        ["cerca_voli", "esplora_voli", "cerca_treni", "mostra_voli", "mostra_treni", "distanza", "mostra_percorso", "stato_treno",
          "segui_treno", "treni_seguiti", "smetti_di_seguire", "bus_in_arrivo"],
         """- prezzi e orari dei voli: cerca_voli con i codici IATA (tutti gli aeroporti della città); se l'utente non dice da \
 dove parte, usa l'aeroporto indicato nella memoria o altrimenti Bologna (BLQ), e dillo. Riporta prezzo, compagnia, \
 orario e se è diretto, senza elencare tutto. Avvisa che le altre compagnie non sono state controllate SOLO se il \
 risultato dice testualmente "solo Ryanair"; se dice "Google Flights (tutte le compagnie)" non aggiungere avvisi
+- destinazione NON scelta ("3 giorni da qualche parte", "dove vado a novembre", "un weekend all'estero", "mete \
+economiche"): esplora_voli SUBITO, senza chiedere conferme e senza cerca_web; poi proponi 3-5 mete con prezzo e date. \
+Non rimandare l'utente a cercare da solo su Google Flights
 - treni, orari e prezzi ("che treno prendo", "come arrivo a Roma", "per arrivare in tempo all'aeroporto"): \
 cerca_treni con città o stazioni; se l'utente deve arrivare entro un'ora (un volo, un appuntamento) passa \
 arrivare_entro, lasciando margine. Per prendere un volo l'arrivo è la stazione dell'aeroporto, non la città \

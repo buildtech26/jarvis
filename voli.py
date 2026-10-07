@@ -113,6 +113,133 @@ def cerca_voli(partenza: str, arrivo: str, data: str, ritorno: str = "") -> str:
     return risultato
 
 
+_link_esplora = ""  # pagina Google "Esplora" dell'ultima esplora_voli, per mostra_voli senza arrivo
+EUROPA = "/m/02j9z"  # kgmid di Google per l'area di arrivo
+
+
+def _ryanair_esplora(da: str, inizio: datetime.date, fine: datetime.date, notti: tuple[int, int]) -> list[dict]:
+    """Andata e ritorno Ryanair verso tutte le destinazioni: gratis e con le notti esatte."""
+    r = requests.get("https://www.ryanair.com/api/farfnd/v4/roundTripFares", params={
+        "departureAirportIataCode": da, "outboundDepartureDateFrom": inizio.isoformat(),
+        "outboundDepartureDateTo": fine.isoformat(), "inboundDepartureDateFrom": inizio.isoformat(),
+        "inboundDepartureDateTo": (fine + datetime.timedelta(days=notti[1])).isoformat(),
+        "durationFrom": notti[0], "durationTo": notti[1], "currency": "EUR", "market": "it-it", "adultPaxCount": 1,
+    }, timeout=20)
+    r.raise_for_status()
+    mete = []
+    for f in r.json().get("fares", []):
+        arrivo = f["outbound"]["arrivalAirport"]
+        mete.append({"citta": arrivo["city"]["name"], "paese": arrivo["countryName"], "aeroporto": arrivo["iataCode"],
+                     "prezzo": f["summary"]["price"]["value"], "andata": f["outbound"]["departureDate"][:16].replace("T", " "),
+                     "ritorno": f["inbound"]["departureDate"][:16].replace("T", " "), "compagnia": "Ryanair",
+                     "scali": 0, "fonte": "Ryanair"})
+    return mete
+
+
+def _google_esplora(da: str, mese: int, notti: tuple[int, int], europa: bool) -> tuple[list[dict], str]:
+    """Google Flights 'Esplora' via SerpApi: tutte le compagnie, ma la durata è solo weekend / 1 / 2 settimane."""
+    global _link_esplora
+    durata = "1" if notti[1] <= 4 else "2" if notti[1] <= 9 else "3"
+    parametri = {"engine": "google_travel_explore", "departure_id": da, "month": str(mese), "travel_duration": durata,
+                 "currency": "EUR", "hl": "it", "gl": "it", "api_key": os.environ["SERPAPI_KEY"].strip()}
+    if europa:
+        parametri["arrival_area_id"] = EUROPA
+    risposta = requests.get("https://serpapi.com/search.json", params=parametri, timeout=60).json()
+    if "error" in risposta:
+        raise RuntimeError(risposta["error"])
+    _link_esplora = risposta.get("search_metadata", {}).get("google_travel_explore_url", "") or _link_esplora
+    mete = []
+    for d in risposta.get("destinations", []):
+        if not d.get("flight_price"):
+            continue
+        mete.append({"citta": d.get("name", "?"), "paese": d.get("country", ""), "aeroporto": d.get("destination_airport", {}).get("code", ""),
+                     "prezzo": d["flight_price"], "andata": d.get("start_date", ""), "ritorno": d.get("end_date", ""),
+                     "compagnia": d.get("airline", ""), "scali": d.get("number_of_stops", 0), "fonte": "Google"})
+        # hotel_price non è il prezzo a notte (Parigi: 142 contro hotel da 54 €/notte sulla pagina): non si usa
+    return mete, durata
+
+
+def esplora_voli(mese: str, notti_min: int = 2, notti_max: int = 4, partenza: str = "BLQ", estero: bool = False,
+                 europa: bool = True) -> str:
+    """Le mete più economiche quando l'utente NON ha ancora scelto la destinazione ("3 giorni da qualche parte a
+    novembre", "dove posso andare con poco?", "un weekend fuori dall'Italia", "mete economiche a dicembre"). Cerca
+    andata e ritorno verso tutte le destinazioni nel mese, con le date migliori. Poi riporta 3-5 mete con prezzo,
+    date e compagnia; se l'utente ne sceglie una, usa cerca_voli per gli orari precisi. Per VEDERE i risultati:
+    mostra_voli con arrivo vuoto.
+
+    Args:
+        mese: 'AAAA-MM' (es. '2026-11'); per "il prossimo weekend" o date vicine usa il mese corrente
+        notti_min: notti minime fuori. Un viaggio di N giorni = N-1 notti (4 giorni = 3 notti), weekend = 2
+        notti_max: notti massime: di solito notti_min + 1 per lasciare margine sulle date
+        partenza: codice IATA dell'aeroporto di partenza (uno solo); senza indicazioni BLQ
+        estero: True se l'utente vuole uscire dall'Italia ("fuori Italia", "all'estero")
+        europa: False solo se l'utente vuole anche mete extraeuropee
+    """
+    global _link_esplora
+    anno, m = (int(x) for x in mese.split("-")[:2])
+    inizio = max(datetime.date(anno, m, 1), datetime.date.today() + datetime.timedelta(days=1))
+    fine = (datetime.date(anno + m // 12, m % 12 + 1, 1) - datetime.timedelta(days=1))
+    notti = (max(1, int(notti_min)), max(int(notti_min), int(notti_max)))
+    da = partenza.split(",")[0].strip().upper()
+
+    chiave = ("esplora", da, mese, notti, estero, europa)
+    salvato = _cache.get(chiave)
+    if salvato and time.time() - salvato[0] < 1800:
+        return salvato[1]
+
+    mete, avvisi, durata_google = [], [], ""
+    try:
+        mete += _ryanair_esplora(da, inizio, fine, notti)
+    except Exception as e:
+        avvisi.append(f"Ryanair non risponde ({e})")
+    if os.getenv("SERPAPI_KEY", "").strip():
+        try:
+            trovate, durata_google = _google_esplora(da, m, notti, europa)
+            mete += trovate
+        except Exception as e:
+            avvisi.append(f"Google Flights non disponibile ({e}): solo Ryanair")
+    else:
+        avvisi.append("senza SerpApi: solo Ryanair")
+    # anche la pagina da aprire, se SerpApi non l'ha data: Google capisce la richiesta scritta
+    if not _link_esplora:
+        _link_esplora = "https://www.google.com/travel/explore?hl=it&curr=EUR&q=" + quote(f"voli da {da} a {mese}")
+
+    if estero:
+        mete = [x for x in mete if x["paese"].lower() != "italia"]
+    if not mete:
+        return f"Nessuna meta trovata da {da} a {mese}" + (f" ({'; '.join(avvisi)})" if avvisi else "") + "."
+    # una riga per città: vince il prezzo più basso, ma si tiene nota dell'altra fonte
+    migliori: dict[str, dict] = {}
+    for x in sorted(mete, key=lambda x: x["prezzo"]):
+        migliori.setdefault(x["citta"].lower(), x)
+    elenco = sorted(migliori.values(), key=lambda x: x["prezzo"])[:12]
+
+    nomi_durata = {"1": "weekend", "2": "1 settimana", "3": "2 settimane"}
+    righe = [f"Mete andata e ritorno da {da} a {mese}, {notti[0]}-{notti[1]} notti, dalla più economica "
+             f"(prezzo a persona, volo A/R):"]
+    for x in elenco:
+        scali = "diretto" if not x["scali"] else f"{x['scali']} scal{'o' if x['scali'] == 1 else 'i'}"
+        try:
+            n = (datetime.date.fromisoformat(x["ritorno"][:10]) - datetime.date.fromisoformat(x["andata"][:10])).days
+            durata = f"{n} notti" + ("" if notti[0] <= n <= notti[1] else " (NON quelle chieste)")
+        except ValueError:
+            durata = "notti ?"
+        righe.append(f"{x['prezzo']:.0f} € | {x['citta']} ({x['aeroporto']}, {x['paese']}) | {x['andata']} → "
+                     f"{x['ritorno']}, {durata} | {x['compagnia']}, {scali}")
+    righe.append("Fonti: Ryanair con le notti richieste" + (f"; Google Flights tutte le compagnie, ma con durata "
+                 f"'{nomi_durata[durata_google]}': per una meta con notti diverse da quelle chieste, il prezzo con le "
+                 f"date giuste va verificato con cerca_voli" if durata_google else "") + ".")
+    if avvisi:
+        righe.append("Nota: " + "; ".join(avvisi) + ".")
+    risultato = "\n".join(righe)
+    _cache[chiave] = (time.time(), risultato)
+    return risultato
+
+
+def link_esplora() -> str:
+    return _link_esplora or "https://www.google.com/travel/explore?hl=it&curr=EUR"
+
+
 def _chiave(partenza: str, arrivo: str, data: str, ritorno: str):
     da = [c.strip().upper() for c in partenza.split(",") if c.strip()]
     a = [c.strip().upper() for c in arrivo.split(",") if c.strip()]

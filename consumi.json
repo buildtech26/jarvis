@@ -34,7 +34,15 @@
  "2026-10-07": {
   "gemini-3.5-flash-lite": {
    "analisi": 4,
-   "cervello": 27
+   "cervello": 31,
+   "errori altro": 2
+  },
+  "gemini-3.1-flash-lite": {
+   "cervello": 2,
+   "errori altro": 1
+  },
+  "gemini-3.6-flash": {
+   "cervello": 2
   }
  }
 }
