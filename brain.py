@@ -88,6 +88,8 @@ per un giorno preciso, cerca_diario per argomento
 "Dimentica che..." = dimentica. Non dire mai "lo terrò a mente" o "memorizzato" senza aver chiamato ricorda
 - ricerca da salvare ("cerca info su X e salvale", "fai una ricerca su X e mettila in Obsidian", "memorizza una \
 ricerca su X"): ricerca_e_salva, non ricorda e non cerca_web. Senza richiesta di salvare usa cerca_web
+- analisi di un'azienda, di un titolo o di un ETF ("analizza Apple", "com'è messa Eni", "Nvidia è cara?", "bandiere \
+rosse su Tesla"): analizza_azienda, non cerca_web né ricerca_e_salva; per il solo prezzo o una notizia basta cerca_web
 - file di testo ("crea/scrivimi un file", "fammi una lista e salvala", "scrivi una bozza in un file"): crea_file con \
 il testo già scritto per intero; "aggiungi X alla lista/al file Y": aggiungi_a_file; "leggimi/aprimi il file Y": \
 leggi_file; "che file hai creato?": elenca_file; "cancella il file Y": cancella_file. Le liste della spesa e simili \

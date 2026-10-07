@@ -13,6 +13,7 @@ from ddgs import DDGS
 from dotenv import load_dotenv
 
 import alloggi
+import analista
 import articoli
 import calendario
 import diario
@@ -332,7 +333,7 @@ TUTTI = [
     alloggi.cerca_alloggi, mostra_alloggi,
     ritardi.stato_treno, ritardi.segui_treno, ritardi.treni_seguiti, ritardi.smetti_di_seguire,
     tper.bus_in_arrivo, *parcheggio.STRUMENTI, quota.consumi, memoria.ricorda, memoria.dimentica, *articoli.STRUMENTI, *diario.STRUMENTI,
-    *ricerche.STRUMENTI, *miei_file.STRUMENTI,
+    *ricerche.STRUMENTI, *miei_file.STRUMENTI, *analista.STRUMENTI,
 ]
 if posta.configurata():
     TUTTI += posta.STRUMENTI
