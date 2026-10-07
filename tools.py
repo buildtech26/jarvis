@@ -86,24 +86,28 @@ def cerca_nel_browser(cosa: str, sito: str = "google") -> str:
     return f"Aperta in Chrome la ricerca '{cosa}' su {sito}."
 
 
-def mostra_voli(partenza: str = "BLQ", arrivo: str = "", data: str = "", ritorno: str = "", sito: str = "google") -> str:
+def mostra_voli(partenza: str = "BLQ", arrivo: str = "", data: str = "", ritorno: str = "", sito: str = "") -> str:
     """Apre in Chrome la pagina con i voli già cercati, quando l'utente vuole VEDERE i voli o aprire Google Flights/Ryanair.
-    Dopo esplora_voli (destinazione non scelta) lascia arrivo e data vuoti: si apre la pagina Esplora di Google.
+    Dopo esplora_voli (destinazione non scelta) lascia arrivo e data vuoti: si apre la pagina con le stesse tariffe.
+    Per una meta scelta dai risultati passa il suo codice IATA e le sue date di andata e ritorno ESATTE.
     Mai codici inventati per un'area (niente 'EUR').
 
     Args:
         partenza: codici IATA di partenza separati da virgola (Roma = 'FCO,CIA')
-        arrivo: codici IATA di arrivo, stesso formato; vuoto per la pagina Esplora dell'ultima esplora_voli
+        arrivo: codici IATA di arrivo, stesso formato; vuoto per la pagina dei risultati dell'ultima esplora_voli
         data: giorno di partenza 'AAAA-MM-GG'; vuoto insieme ad arrivo
         ritorno: giorno di ritorno 'AAAA-MM-GG' se andata e ritorno, altrimenti vuoto
-        sito: 'google' (Google Flights, tutte le compagnie) oppure 'ryanair' se l'utente nomina Ryanair
+        sito: vuoto (sceglie da solo il sito da cui viene il prezzo), 'google' o 'ryanair' solo se l'utente li nomina
     """
     if not arrivo.strip() or not data.strip():
-        _apri_nel_browser(voli.link_esplora())
-        return "Aperta in Chrome la pagina Esplora di Google Flights con le mete dell'ultima ricerca."
+        url = voli.link_esplora(sito)
+        _apri_nel_browser(url)
+        nome = "Ryanair \"Trova tariffe\"" if "ryanair" in url else "Google Flights Esplora"
+        return f"Aperta in Chrome la pagina {nome} con i risultati dell'ultima ricerca."
+    sito = sito.strip() or voli.fonte_meta(arrivo)
     _apri_nel_browser(voli.link_voli(partenza, arrivo, data, ritorno, sito))
-    nome = "Ryanair" if sito.lower().strip() == "ryanair" else "Google Flights"
-    return f"Aperti in Chrome su {nome} i voli {partenza} → {arrivo} del {data}."
+    nome = "Ryanair" if sito.lower() == "ryanair" else "Google Flights"
+    return f"Aperti in Chrome su {nome} i voli {partenza} → {arrivo} del {data[:10]}" + (f", ritorno {ritorno[:10]}." if ritorno else ".")
 
 
 def mostra_treni(partenza: str, arrivo: str, data: str, ora: str = "") -> str:
