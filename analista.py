@@ -2,6 +2,8 @@
 
 company-analyst resta un progetto a parte: Jarvis lancia analista_ponte.py con il Python del venv di company-analyst
 (pandas e yfinance non entrano nel venv di Jarvis) e riceve il prompt già pronto, scheda dei fatti più istruzioni.
+Il testo lo scrive Gemini con la chiave di company-analyst (secrets.toml) e i modelli Flash-Lite di Jarvis: il modello
+predefinito di company-analyst (3.5-flash) andava in timeout.
 L'analisi completa finisce in Obsidian, in raw/ come le ricerche salvate, e passa nella wiki con il 'compile'.
 Una nuova analisi dello stesso tipo sullo stesso titolo sovrascrive la nota finché non è stata compilata.
 """
@@ -10,6 +12,8 @@ import json
 import os
 import re
 import subprocess
+import time
+import tomllib
 from pathlib import Path
 
 import quota
@@ -44,11 +48,26 @@ def _prompt(azienda: str, tipo: str) -> dict:
     return json.loads(righe[-1])
 
 
+def _chiave_analyst() -> str:
+    """La chiave Gemini di company-analyst, dal suo secrets.toml (non dall'ambiente, che ha quella di Jarvis)."""
+    try:
+        with (CARTELLA_ANALYST / ".streamlit" / "secrets.toml").open("rb") as f:
+            return str(tomllib.load(f).get("GEMINI_API_KEY", "")).strip()
+    except (OSError, tomllib.TOMLDecodeError):
+        return ""
+
+
+# pause dopo un 429 sulla chiave di company-analyst: è un altro progetto Google con limiti suoi, e un suo 429 non
+# deve fermare i modelli di Jarvis (né viceversa)
+_pause_analyst: dict[str, float] = {}
+
+
 def _scrivi(dati: dict) -> dict:
+    """Prima con la chiave di company-analyst, così l'analisi (una richiesta pesante) non consuma il limite al
+    minuto che serve a Jarvis per conversare; se non c'è o è esaurita, con la chiave di Jarvis."""
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"].strip())
     config = types.GenerateContentConfig(
         system_instruction=dati["sistema"],
         response_mime_type="application/json",
@@ -61,8 +80,24 @@ def _scrivi(dati: dict) -> dict:
         http_options=types.HttpOptions(timeout=150000),
     )
     testo = ISTRUZIONI.format(prompt=dati["prompt"])
-    scartati: set[str] = set()
     errore = "nessun modello disponibile"
+
+    chiave = _chiave_analyst()
+    if chiave and chiave != os.environ.get("GEMINI_API_KEY", "").strip():
+        client = genai.Client(api_key=chiave)
+        for modello in quota.MODELLI:
+            if _pause_analyst.get(modello, 0) > time.time():
+                continue
+            try:
+                r = client.models.generate_content(model=modello, contents=testo, config=config)
+                return json.loads(r.text)
+            except Exception as e:  # 429, chiave revocata, rete, JSON troncato: si passa oltre
+                errore = str(e)
+                quota.segna_errore(modello, errore, _pause_analyst)
+
+    # riserva: la chiave di Jarvis, con le sue pause e il suo contatore dei consumi
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"].strip())
+    scartati: set[str] = set()
     for _ in range(6):
         modello = quota.prossimo(scartati)
         if modello is None:

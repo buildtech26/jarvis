@@ -34,8 +34,9 @@ def _riapertura_giornaliera() -> float:
     return nove.timestamp()
 
 
-def segna_errore(modello: str, errore: str) -> str:
-    """Registra un 429 e restituisce 'giorno', 'minuto' o '' (errore di altro tipo, nessuna pausa)."""
+def segna_errore(modello: str, errore: str, pause: dict[str, float] | None = None) -> str:
+    """Registra un 429 e restituisce 'giorno', 'minuto' o '' (errore di altro tipo, nessuna pausa).
+    pause: dove segnarlo, se il 429 viene da un'altra chiave (es. quella di company-analyst)."""
     if "429" not in errore and "RESOURCE_EXHAUSTED" not in errore:
         return ""
     if "PerDay" in errore:
@@ -44,7 +45,7 @@ def segna_errore(modello: str, errore: str) -> str:
         m = re.search(r"retryDelay'?\"?:\s*'?\"?(\d+(?:\.\d+)?)s", errore)
         tipo, fino = "minuto", time.time() + (float(m.group(1)) if m else 60) + 1
     with _lock:
-        _pausa[modello] = fino
+        (_pausa if pause is None else pause)[modello] = fino
     return tipo
 
 
