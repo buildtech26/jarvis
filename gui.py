@@ -336,6 +336,14 @@ class Finestra:
             self.campo.delete("1.0", "end")
         if not testo or self.occupato:
             return
+        if testo.lower() == "/riavvia":
+            # come su Telegram, ma riparte con la finestra aperta; senza questo finiva a Gemini come domanda
+            import riavvio
+
+            self._messaggio("Tu", testo, "tu")
+            self._messaggio("Jarvis", "Mi riavvio, signore: la finestra si riapre tra un minuto circa.", "jarvis")
+            riavvio.lancia(da_telegram=False)
+            return
         self.occupato = True
         self._messaggio("Tu", testo, "tu")
         self._imposta_stato("sto pensando…", ACCENTO)

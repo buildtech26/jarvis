@@ -1,7 +1,6 @@
 """Bot Telegram: messaggi di testo e vocali, risponde solo al proprietario."""
 import json
 import os
-import subprocess
 import tempfile
 import threading
 import time
@@ -16,6 +15,7 @@ import parcheggio
 import posta
 import promemoria
 import quota
+import riavvio
 import ritardi
 import voice
 
@@ -180,21 +180,12 @@ class BotTelegram:
             requests.post(f"{self.api}/sendPhoto", data={"chat_id": chat_id}, files={"photo": f}, timeout=60)
 
     def riavvia(self, chat_id):
-        """Lancia riavvia.ps1, che chiude anche questa copia: deve sopravviverle, quindi parte staccata."""
         self.invia(chat_id, "Mi riavvio, signore: torno tra un minuto circa.")
         # conferma a Telegram questo messaggio: altrimenti la copia nuova, che riparte senza offset, lo riceve
         # di nuovo e si riavvia all'infinito
         requests.get(f"{self.api}/getUpdates", params={"offset": self.aggiornamento + 1, "timeout": 0}, timeout=30)
         RIAVVIO.write_text(json.dumps({"chat_id": chat_id, "quando": time.strftime("%H:%M")}), encoding="utf-8")
-        comando = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                   str(Path(__file__).with_name("riavvia.ps1")), "-DaTelegram"]
-        flag = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
-        try:
-            # partito dall'attività pianificata, Jarvis è dentro un job di Windows: meglio uscirne
-            subprocess.Popen(comando, creationflags=flag | subprocess.CREATE_BREAKAWAY_FROM_JOB, close_fds=True)
-        except OSError:  # il job non lo permette
-            subprocess.Popen(comando, creationflags=flag, close_fds=True)
-        print("[telegram] /riavvia: lanciato riavvia.ps1")
+        riavvio.lancia(da_telegram=True)
 
     def conferma_riavvio(self):
         if not RIAVVIO.exists():
