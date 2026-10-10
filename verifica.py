@@ -6,7 +6,16 @@ strumento l'avesse trovata, e ha detto "ho impostato tre notti" con prezzi "into
 niente. Il controllo è solo testo, senza richieste: brain.py, se trova dubbi, chiede una volta a Gemini di
 correggersi, poi aggiunge un avviso. prova_verifica.py lo prova sui casi veri del diario.
 """
+import datetime
+import json
 import re
+import threading
+from pathlib import Path
+
+# ogni risposta di Gemini con le sue fonti, per tarare il controllo sui casi veri: dice sia i falsi allarmi
+# (dubbi su dati che c'erano) sia le invenzioni sfuggite (dati senza dubbi che le fonti non contengono)
+FILE = Path(__file__).with_name("verifica.jsonl")
+_lock = threading.Lock()
 
 # compagnie e marchi di trasporto: citarli senza che una fonte li nomini è il caso tipico di dato inventato
 MARCHI = [
@@ -102,6 +111,20 @@ def correzione(dubbi: list[str]) -> str:
             f"strumento né dalla conversazione: {'; '.join(dubbi)}. Se servono, chiama lo strumento che li verifica. "
             "Altrimenti riscrivi la risposta senza quei dati e di' chiaramente cosa non hai controllato. "
             "Non dire di aver fatto azioni che non hai fatto con uno strumento.")
+
+
+def registra(domanda: str, strumenti: list[str], risultati: list[str], precedenti: list[str],
+             tentativi: list[tuple[str, list[str]]]):
+    """Aggiunge una riga a verifica.jsonl. precedenti: risultati delle ultime domande (per i seguiti);
+    tentativi: (risposta, dubbi) del primo ed eventuale secondo giro."""
+    riga = {"quando": f"{datetime.datetime.now():%Y-%m-%d %H:%M}", "domanda": domanda, "strumenti": strumenti,
+            "risultati": [r[:1500] for r in risultati], "precedenti": [r[:1500] for r in precedenti],
+            "tentativi": [{"risposta": r, "dubbi": d} for r, d in tentativi]}
+    try:
+        with _lock, FILE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(riga, ensure_ascii=False) + "\n")
+    except OSError as e:  # il registro non deve mai far fallire una risposta
+        print(f"[verifica] registro non scritto: {e}")
 
 
 def con_avviso(risposta: str, dubbi: list[str]) -> str:

@@ -222,15 +222,19 @@ class Jarvis:
         ]
         risposta = self._ciclo(modello, config, contenuti, log)
         dubbi = verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti))
+        tentativi = [(risposta, dubbi)]
         if dubbi:
             # un solo secondo tentativo, sugli stessi contenuti: i risultati già ottenuti non si richiedono
             log(f"  [verifica] dati senza fonte: {'; '.join(dubbi)} — riprovo: {risposta[:80]!r}")
             contenuti.append(types.Content(role="model", parts=[types.Part(text=risposta)]))
             contenuti.append(types.Content(role="user", parts=[types.Part(text=verifica.correzione(dubbi))]))
             risposta = self._ciclo(modello, config, contenuti, log)
-            if dubbi := verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti)):
+            dubbi = verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti))
+            tentativi.append((risposta, dubbi))
+            if dubbi:
                 log(f"  [verifica] ancora senza fonte: {'; '.join(dubbi)}, aggiungo l'avviso")
                 risposta = verifica.con_avviso(risposta, dubbi)
+        verifica.registra(self.storia[-1]["content"], list(_usati), list(_risultati), self.recenti, tentativi)
         return risposta
 
     def _fonti(self) -> list[str]:
