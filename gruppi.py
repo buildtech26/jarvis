@@ -115,11 +115,19 @@ serie e carichi SOLO dalla scheda: non inventarne""",
         r"aliment|\bdiet|mangi|\bcibo|\bpast[oi]\b|colazion|pranz|\bcen[ae]\b|merend|spuntin|cucin|ricett|calori|"
         r"\bkcal|protei|carboidrat|grass[io]|dimagr|perdere peso|\bpeso\b|\bpesarmi|fame|integrator|verdur|frutta|"
         r"legum|\buova\b|porzion|\bgramm",
-        ["consigli_alimentazione"],
+        ["consigli_alimentazione", "calcola_ricetta"],
         """- alimentazione (l'utente vuole perdere grasso, cucina da sé, budget stretto; non tieni un diario dei pasti): \
 per cosa mangiare, quanto, calorie, proteine, ricette, spesa economica, peso, fame: PRIMA consigli_alimentazione, poi \
 rispondi seguendo le linee guida e usando SOLO le calorie e le proteine scritte lì, con porzioni in grammi e \
-ingredienti economici. Se lì dice che mancano dei dati, dillo e spiega dove scriverli. Mai diete drastiche""",
+ingredienti economici. Se lì dice che mancano dei dati, dillo e spiega dove scriverli. Mai diete drastiche
+- "cosa mangio stasera", "cosa cucino a pranzo", "dammi una ricetta": consigli_alimentazione con il pasto \
+(stasera = cena), poi proponi UNA ricetta per una persona, anche se mancano i dati (allora con le porzioni di \
+riferimento della nota). Scegli gli ingredienti (economici; se l'utente dice cosa ha in casa usa quelli; non ripetere \
+un piatto già proposto nella conversazione) e passali a calcola_ricetta con i grammi di OGNI ingrediente; se il totale \
+è lontano dalle kcal del pasto cambia le dosi e richiamalo. Poi rispondi con: il nome del piatto, gli ingredienti con \
+i grammi in una frase, i passaggi in frasi brevi nell'ordine in cui si fanno, il tempo, e kcal e proteine totali \
+COPIATE dal risultato di calcola_ricetta (mai calcoli tuoi). È una richiesta esplicita: riporta la ricetta per \
+intero, senza il limite delle tre frasi. Chiudi offrendo un'alternativa in una riga""",
     ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"

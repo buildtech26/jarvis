@@ -32,6 +32,19 @@ calorie e le proteine al giorno.
 - Olio, burro, formaggi stagionati, frutta secca e salse sono buoni ma pesano tante kcal in poco volume: misurali con il
   cucchiaio, non a occhio.
 
+## Valori degli ingredienti
+
+Circa, ogni 100 g a crudo (legumi in scatola sgocciolati): kcal · proteine. Servono a Jarvis per calcolare le dosi
+delle ricette.
+
+- Pasta 355 · 12 g; riso 350 · 7 g; pane 270 · 9 g; fiocchi d'avena 370 · 13 g; patate 80 · 2 g
+- Lenticchie secche 300 · 23 g; ceci secchi 320 · 21 g; fagioli secchi 300 · 21 g; legumi in scatola 110 · 7 g
+- Uova 140 · 12,5 g (un uovo medio circa 70 kcal · 6 g); petto di pollo 110 · 23 g; fesa di tacchino 107 · 24 g
+- Tonno al naturale 110 · 25 g; merluzzo o platessa surgelati 75 · 17 g
+- Yogurt greco magro 57 · 10 g; fiocchi di latte 105 · 12 g; ricotta vaccina 145 · 10 g; latte parzialmente
+  scremato 46 · 3,3 g; parmigiano o grana 390 · 33 g
+- Olio d'oliva 900 (un cucchiaio da 10 g = 90 kcal); verdure 20-35 · 1-3 g; mela 50; banana 90
+
 ## Proteine che costano poco
 
 - Uova (circa 6 g di proteine l'una).
