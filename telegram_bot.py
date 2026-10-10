@@ -8,9 +8,11 @@ from pathlib import Path
 
 import requests
 
+import alimentazione
 import allenamento
 import brain
 import calendario
+import cronometer
 import documenti
 import foto
 import parcheggio
@@ -80,6 +82,16 @@ class BotTelegram:
                     self.invia_pulsanti(self.utente, testo, pulsanti)
             except Exception as e:
                 print(f"[allenamento] errore: {e}")
+            time.sleep(60)
+
+    def ciclo_alimentazione(self):
+        """Il riepilogo delle 21:30 con i dati di Cronometer (alimentazione.py), controllato una volta al minuto."""
+        while True:
+            try:
+                for testo in alimentazione.controlla():
+                    self.invia(self.utente, testo)
+            except Exception as e:
+                print(f"[alimentazione] errore: {e}")
             time.sleep(60)
 
     def manda_parcheggio(self, chat_id):
@@ -267,6 +279,8 @@ class BotTelegram:
         threading.Thread(target=self.ciclo_promemoria, daemon=True).start()
         if calendario.configurato():
             threading.Thread(target=self.ciclo_allenamento, daemon=True).start()
+        if cronometer.configurato():
+            threading.Thread(target=self.ciclo_alimentazione, daemon=True).start()
         print("Bot Telegram attivo.")
         self.presenta_pulsante()
         self.conferma_riavvio()

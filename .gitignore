@@ -12,3 +12,6 @@ promemoria.json
 parcheggio.json
 bozze.json
 allenamento.json
+alimentazione.json
+# sessione di Cronometer (cookie): vale come una password
+cronometer.json

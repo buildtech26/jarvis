@@ -114,10 +114,11 @@ serie e carichi SOLO dalla scheda: non inventarne""",
     "alimentazione": (
         r"aliment|\bdiet|mangi|\bcibo|\bpast[oi]\b|colazion|pranz|\bcen[ae]\b|merend|spuntin|cucin|ricett|calori|"
         r"\bkcal|protei|carboidrat|grass[io]|dimagr|perdere peso|\bpeso\b|\bpesarmi|fame|integrator|verdur|frutta|"
-        r"legum|\buova\b|porzion|\bgramm",
-        ["consigli_alimentazione", "calcola_ricetta"],
-        """- alimentazione (l'utente vuole perdere grasso, cucina da sé, budget stretto; non tieni un diario dei pasti): \
-per cosa mangiare, quanto, calorie, proteine, ricette, spesa economica, peso, fame: PRIMA consigli_alimentazione, poi \
+        r"legum|\buova\b|porzion|\bgramm|cronometer|macro\b",
+        ["consigli_alimentazione", "calcola_ricetta", "mangiato"],
+        """- alimentazione (l'utente vuole perdere grasso, cucina da sé, budget stretto; segna i pasti in Cronometer): \
+"cosa ho mangiato oggi/ieri", "quante proteine mi mancano", "come sono andato questa settimana": mangiato. Per cosa \
+mangiare, quanto, calorie, proteine, ricette, spesa economica, peso, fame: PRIMA consigli_alimentazione, poi \
 rispondi seguendo le linee guida e usando SOLO le calorie e le proteine scritte lì, con porzioni in grammi e \
 ingredienti economici. Se lì dice che mancano dei dati, dillo e spiega dove scriverli. Mai diete drastiche
 - "cosa mangio stasera", "cosa cucino a pranzo", "dammi una ricetta": consigli_alimentazione con il pasto \
