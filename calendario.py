@@ -1,6 +1,7 @@
 """Google Calendar tramite la web app Apps Script in calendario.gs."""
 import datetime
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
@@ -74,8 +75,34 @@ def impegni_in_breve(giorni_da_oggi: int = 0) -> str:
     return f"{quando.capitalize()}: " + "; ".join(voci) + "."
 
 
+def _sovrapposti(inizio: str, fine: str) -> list[dict]:
+    """Impegni con orario che si accavallano con [inizio, fine). Quelli di tutto il giorno (compleanni, festività)
+    non contano, e nemmeno quelli che finiscono quando l'altro comincia. Il controllo non deve mai impedire di creare
+    o spostare: se fallisce, non trova niente."""
+    try:
+        a, b = _locale(_iso(inizio)), _locale(_iso(fine))
+        eventi = _chiama("eventi", da=_iso(inizio), a=_iso(fine), cerca="")["eventi"]
+    except Exception as e:
+        print(f"[calendario] controllo sovrapposizioni non riuscito: {e}")
+        return []
+    return [ev for ev in eventi if not ev["tutto_il_giorno"] and _locale(ev["inizio"]) < b and _locale(ev["fine"]) > a]
+
+
+def _con_controllo(azione: str, inizio: str, fine: str, **dati) -> str:
+    """crea/sposta e controllo delle sovrapposizioni in parallelo: Apps Script impiega ~3,5 s a richiesta. Il
+    controllo può vedere o no l'evento appena creato o spostato, quindi lo si toglie per id."""
+    with ThreadPoolExecutor(max_workers=1) as esecutore:
+        controllo = esecutore.submit(_sovrapposti, inizio, fine)
+        ev = _chiama(azione, inizio=_iso(inizio), fine=_iso(fine), **dati)
+    chiave = "creato" if azione == "crea" else "spostato"
+    altri = [a for a in controllo.result() if a["id"] != ev[chiave]["id"]]
+    avviso = "\nATTENZIONE, si sovrappone a:\n" + "\n".join(_riga(a) for a in altri) if altri else ""
+    return f"{chiave.capitalize()}: {_riga(ev[chiave])}{avviso}"
+
+
 def crea_evento(titolo: str, inizio: str, fine: str = "", luogo: str = "", tutto_il_giorno: bool = False) -> str:
-    """Aggiunge un evento al calendario principale.
+    """Aggiunge un evento al calendario principale. Se il risultato contiene "ATTENZIONE, si sovrappone a",
+    l'evento è creato lo stesso: di' all'utente con cosa si accavalla (titolo e orario) e chiedi se vuole spostarlo.
 
     Args:
         titolo: nome dell'evento
@@ -86,14 +113,16 @@ def crea_evento(titolo: str, inizio: str, fine: str = "", luogo: str = "", tutto
     """
     if not fine:
         fine = f"{datetime.datetime.strptime(inizio.strip()[:16].replace('T', ' '), '%Y-%m-%d %H:%M') + datetime.timedelta(hours=1):%Y-%m-%d %H:%M}"
-    ev = _chiama("crea", titolo=titolo, inizio=_iso(inizio), fine=_iso(fine), luogo=luogo, tutto_il_giorno=tutto_il_giorno)
-    return "Creato: " + _riga(ev["creato"])
+    if tutto_il_giorno:
+        ev = _chiama("crea", titolo=titolo, inizio=_iso(inizio), fine=_iso(fine), luogo=luogo, tutto_il_giorno=True)
+        return "Creato: " + _riga(ev["creato"])
+    return _con_controllo("crea", inizio, fine, titolo=titolo, luogo=luogo, tutto_il_giorno=False)
 
 
 def sposta_evento(id: str, inizio: str, fine: str, nuovo_titolo: str = "") -> str:
-    """Cambia orario (ed eventualmente titolo) di un evento esistente; l'id viene da eventi_calendario."""
-    ev = _chiama("sposta", id=id, inizio=_iso(inizio), fine=_iso(fine), titolo=nuovo_titolo)
-    return "Spostato: " + _riga(ev["spostato"])
+    """Cambia orario (ed eventualmente titolo) di un evento esistente; l'id viene da eventi_calendario. Se il
+    risultato contiene "ATTENZIONE, si sovrappone a", di' all'utente con cosa si accavalla."""
+    return _con_controllo("sposta", inizio, fine, id=id, titolo=nuovo_titolo)
 
 
 def cancella_evento(id: str, confermato: bool = False) -> str:
