@@ -139,12 +139,15 @@ def ciclo_vocale(jarvis):
     with sd.InputStream(samplerate=FREQ, channels=1, dtype="int16", blocksize=BLOCCO) as stream:
         while True:
             blocco = stream.read(BLOCCO)[0][:, 0]
-            if rilevatore.predict(blocco)["hey_jarvis"] < soglia:
+            punteggio = rilevatore.predict(blocco)["hey_jarvis"]
+            if punteggio < soglia:
                 continue
 
             bip()
             frase = trascrivi(registra_frase(stream))
             rilevatore.reset()
+            # il 06/10 si è attivato su una frase non rivolta a Jarvis: i punteggi servono a tarare WAKEWORD_SOGLIA
+            print(f"[voce] attivato con {punteggio:.2f} (soglia {soglia}): {(frase or '')[:60]!r}")
             if not frase:
                 bip(440)
                 continue
