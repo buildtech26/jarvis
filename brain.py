@@ -18,6 +18,7 @@ import parcheggio
 import promemoria
 import quota
 import ritardi
+import sapere
 import siti
 import spese
 import tools
@@ -172,7 +173,12 @@ class Jarvis:
         return risposta
 
     def _chiedi_gemini(self, modello: str, log) -> str:
-        scelti = gruppi.per_conversazione([m["content"] for m in self.storia if m["role"] == "user"])
+        domande = [m["content"] for m in self.storia if m["role"] == "user"]
+        scelti = gruppi.per_conversazione(domande)
+        if "sapere" not in scelti and (noti := sapere.citati(domande[-1])):
+            # la domanda parla di un argomento già studiato: Gemini deve poter leggere la nota prima del web
+            log(f"  [sapere] argomento già studiato: {', '.join(noti[:3])}")
+            scelti.append("sapere")
         risposta = self._giro_gemini(modello, scelti, log)
         if scelti == ["base"] and not _usati and gruppi.RINUNCIA.search(risposta):
             # nessuna parola aveva indicato un gruppo e il modello dice di non poterlo fare: forse lo strumento

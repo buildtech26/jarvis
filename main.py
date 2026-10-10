@@ -26,10 +26,29 @@ from dotenv import load_dotenv  # noqa: E402
 os.chdir(CARTELLA)
 load_dotenv(CARTELLA / ".env")
 
+class _LogCensurato:
+    """Toglie dal log i segreti del .env: gli errori di requests riportano l'URL intero, e quello di Telegram
+    contiene il token del bot (/bot<token>/getUpdates), quello di SerpApi la chiave (?api_key=...)."""
+
+    def __init__(self, file):
+        self._file = file
+        self._segreti = sorted({v for k, v in os.environ.items()
+                                if any(p in k.upper() for p in ("TOKEN", "KEY", "PASSWORD", "SECRET"))
+                                and len(v) >= 8}, key=len, reverse=True)
+
+    def write(self, testo):
+        for s in self._segreti:
+            testo = testo.replace(s, "***")
+        return self._file.write(testo)
+
+    def __getattr__(self, nome):  # fileno (per faulthandler), flush, ...
+        return getattr(self._file, nome)
+
+
 if "--log" in sys.argv or sys.stdout is None:
     # avvio automatico (attività "Jarvis"): nessuna console visibile, si scrive su jarvis.log
     sys.argv.remove("--log") if "--log" in sys.argv else None
-    sys.stdout = sys.stderr = open(CARTELLA / "jarvis.log", "a", encoding="utf-8", buffering=1)
+    sys.stdout = sys.stderr = _LogCensurato(open(CARTELLA / "jarvis.log", "a", encoding="utf-8", buffering=1))
 
 import atexit  # noqa: E402
 import faulthandler  # noqa: E402

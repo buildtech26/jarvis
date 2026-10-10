@@ -122,6 +122,16 @@ elenca_articoli, leggi_articolo. Sono diversi dalla ricerca web
 - conversazioni dei giorni passati ("cosa ti avevo chiesto ieri", "quel volo che avevamo guardato"): leggi_diario \
 per un giorno preciso, cerca_diario per argomento""",
     ),
+    # attivato anche da brain.py quando la domanda nomina l'argomento di una nota salvata (sapere.citati)
+    "sapere": (
+        r"cosa sai|che sai|sai (?:qualcosa|niente|nulla)|hai (?:studiato|imparato|trovato|letto|salvato)|"
+        r"avevi (?:trovato|cercato|letto|salvato)|ricerch|\bwiki\b|knowledge|le (?:mie|tue) note|nelle note",
+        ["cerca_sapere", "leggi_sapere"],
+        """- cose che hai già studiato (ricerche salvate in Obsidian e wiki): per "cosa sai di X", "cosa avevi trovato su \
+X" o una domanda su un argomento che hai già ricercato usa PRIMA cerca_sapere, poi leggi_sapere se gli estratti non \
+bastano. Rispondi da lì dicendo da quale nota e di che data; cerca_web solo se la nota non risponde o se servono \
+dati più recenti""",
+    ),
     "scrittura": (
         r"\bfile\b|lista|elenco|\bnota\b|obsidian|salva|memorizza|scriv|bozza|ricerca su|fai una ricerca|"
         r"informazioni su|cancella il|aggiungi",
