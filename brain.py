@@ -247,6 +247,8 @@ class Jarvis:
 
     def _ciclo(self, modello: str, config, contenuti: list, log) -> str:
         """Domanda → strumenti → risposta, al massimo MAX_PASSI giri di strumenti."""
+        from google.genai import types
+
         for _ in range(MAX_PASSI):
             r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
             quota.registra(modello, "cervello")
