@@ -27,6 +27,9 @@ FINE = {"colazione": datetime.time(10, 30), "pranzo": datetime.time(15), "spunti
         "cena": datetime.time(23)}
 TETTO = 1.5  # un pasto non supera 1,5 volte la sua quota fissa, anche se in Cronometer manca mezza giornata
 SERALE = datetime.time(21, 30)
+# i pasti di Cronometer (colonna Group dei cibi), in inglese o in italiano a seconda della lingua dell'account
+PASTI_CRONOMETER = {"Colazione": {"breakfast", "colazione"}, "Pranzo": {"lunch", "pranzo"},
+                    "Cena": {"dinner", "cena"}, "Spuntini": {"snacks", "snack", "spuntini", "spuntino"}}
 _pausa_fino = 0.0  # dopo un errore di Cronometer il riepilogo riprova fra 10 minuti
 _tentativi: dict[str, int] = {}
 # contate come la riga "verdure" della tabella; controllate prima della tabella ("fagiolini" non sono fagioli secchi)
@@ -188,15 +191,34 @@ def _su(valore: float, obiettivo: dict | None, chiave: str, unita: str) -> str:
     return f"{valore:.0f}{unita}" + (f" su {obiettivo[chiave]}" if obiettivo else "")
 
 
+def _nome_pasto(gruppo: str) -> str:
+    """Il pasto di Cronometer in italiano ('Breakfast' → 'Colazione'); i nomi personalizzati restano come sono."""
+    chiave = gruppo.strip().lower()
+    for nome, parole in PASTI_CRONOMETER.items():
+        if chiave in parole:
+            return nome
+    return gruppo.strip().capitalize() or "Senza pasto"
+
+
+def _per_pasto_segnato(cibi: list[dict]) -> dict[str, list[dict]]:
+    """I cibi divisi per pasto, nell'ordine della giornata (poi i pasti con altri nomi, come arrivano)."""
+    pasti: dict[str, list[dict]] = {}
+    for c in cibi:
+        pasti.setdefault(_nome_pasto(c["gruppo"]), []).append(c)
+    ordine = list(PASTI_CRONOMETER)
+    return dict(sorted(pasti.items(), key=lambda p: ordine.index(p[0]) if p[0] in ordine else len(ordine)))
+
+
 def _giorno_testo(giorno: datetime.date, totali: dict | None, cibi: list[dict], n: dict | None) -> str:
     if not totali or totali["kcal"] < 1:
         return f"{giorno:%d/%m}: in Cronometer non c'è niente segnato."
     testo = (f"{giorno:%d/%m} in Cronometer: {_su(totali['kcal'], n, 'calorie', ' kcal')}, "
              f"{_su(totali['proteine'], n, 'proteine', ' g')} di proteine, {totali['carboidrati']:.0f} g di "
              f"carboidrati, {totali['grassi']:.0f} g di grassi.")
-    if cibi:
-        testo += "\nCibi:\n" + "\n".join(
-            f"- {c['nome']} ({c['quantita']}): {c['kcal']:.0f} kcal, {c['proteine']:.0f} g di proteine" for c in cibi)
+    for pasto, suoi in _per_pasto_segnato(cibi).items():
+        testo += (f"\n{pasto}: {sum(c['kcal'] for c in suoi):.0f} kcal, {sum(c['proteine'] for c in suoi):.0f} g di "
+                  "proteine\n" + "\n".join(f"- {c['nome']} ({c['quantita']}): {c['kcal']:.0f} kcal, "
+                                           f"{c['proteine']:.0f} g di proteine" for c in suoi))
     return testo
 
 
@@ -226,6 +248,9 @@ def riepilogo(giorno: datetime.date) -> str:
     else:
         testo = (f"🍽 Oggi finora: {_su(t['kcal'], n, 'calorie', ' kcal')} e "
                  f"{_su(t['proteine'], n, 'proteine', ' g')} di proteine.")
+        pasti = _per_pasto_segnato(cronometer.cibi(giorno))
+        if pasti:
+            testo += "\n" + " · ".join(f"{p} {sum(c['kcal'] for c in suoi):.0f} kcal" for p, suoi in pasti.items())
         if n and t["proteine"] < n["proteine"] * 0.85:
             testo += (f" Proteine basse ({n['proteine'] - t['proteine']:.0f} g sotto): domani uno yogurt greco o due "
                       "uova in più.")
@@ -303,7 +328,8 @@ def consigli_alimentazione(pasto: str = "") -> str:
 
 def mangiato(giorno: str = "oggi") -> str:
     """Cosa ha mangiato l'utente secondo Cronometer, l'app in cui segna i pasti: kcal, proteine, carboidrati e grassi
-    rispetto ai suoi obiettivi e i cibi uno per uno; con 'settimana' le medie degli ultimi 7 giorni.
+    rispetto ai suoi obiettivi, poi ogni pasto (colazione, pranzo, cena, spuntini) con le sue kcal e proteine e i
+    suoi cibi; con 'settimana' le medie degli ultimi 7 giorni. Nella risposta dai sempre le kcal di ogni pasto.
 
     Args:
         giorno: 'oggi', 'ieri', 'AAAA-MM-GG' oppure 'settimana'

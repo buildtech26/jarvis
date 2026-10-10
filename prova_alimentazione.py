@@ -85,8 +85,14 @@ def main() -> int:
 
     cronometer.configurato = lambda: True
     cronometer.giorni = giorni
-    cronometer.cibi = lambda g: [{"nome": "Pasta", "quantita": "80 g", "gruppo": "Lunch", "kcal": 284,
-                                  "proteine": 9.6, "carboidrati": 60, "grassi": 1.2}]
+    def cibo(nome, gruppo, kcal, proteine):
+        return {"nome": nome, "quantita": "100 g", "gruppo": gruppo, "kcal": kcal, "proteine": proteine,
+                "carboidrati": 0, "grassi": 0}
+
+    # in ordine sparso, come può arrivare dal diario; "Merenda" è un gruppo con un nome personalizzato
+    cronometer.cibi = lambda g: [cibo("Pasta", "Lunch", 284, 9.6), cibo("Yogurt greco", "Breakfast", 57, 10),
+                                 cibo("Tonno", "Lunch", 110, 25), cibo("Frittata", "Dinner", 420, 30),
+                                 cibo("Mela", "merenda", 50, 0)]
     adesso = [datetime.datetime(2026, 10, 18, 20)]
     alimentazione._adesso = lambda: adesso[0]
 
@@ -102,7 +108,9 @@ def main() -> int:
     guasto[0] = False
 
     r = alimentazione.mangiato("2026-10-18")
-    atteso("1700 kcal su 2450" in r and "100 g su 144" in r and "- Pasta (80 g): 284 kcal" in r, "mangiato un giorno", r)
+    atteso("1700 kcal su 2450" in r and "100 g su 144" in r and "- Pasta (100 g): 284 kcal" in r, "mangiato un giorno", r)
+    atteso(r.index("Colazione: 57 kcal, 10 g") < r.index("Pranzo: 394 kcal, 35 g") < r.index("Cena: 420 kcal")
+           < r.index("Merenda: 50 kcal"), "kcal per pasto, in ordine", r)
     adesso[0] = datetime.datetime(2026, 10, 18, 12)
     # i giorni con meno di 500 kcal (150) non contano: 6 giorni, media 13450/6 = 2242, proteine 790/6 = 132
     r = alimentazione.mangiato("settimana")
@@ -114,8 +122,9 @@ def main() -> int:
     adesso[0] = datetime.datetime(2026, 10, 18, 21, 30)
     messaggi = alimentazione.controlla()
     atteso(len(messaggi) == 1 and "Oggi finora: 1700 kcal su 2450 e 100 g su 144" in messaggi[0]
-           and "Proteine basse" in messaggi[0] and "📊 Settimana 12/10-18/10" in messaggi[0], "riepilogo domenica",
-           messaggi)
+           and "Proteine basse" in messaggi[0] and "📊 Settimana 12/10-18/10" in messaggi[0]
+           and "Colazione 57 kcal · Pranzo 394 kcal · Cena 420 kcal · Merenda 50 kcal" in messaggi[0],
+           "riepilogo domenica", messaggi)
     atteso(alimentazione.controlla() == [], "una volta sola al giorno")
     adesso[0] = datetime.datetime(2026, 10, 17, 22)
     r = alimentazione.controlla()
