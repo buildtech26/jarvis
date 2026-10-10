@@ -6,3 +6,8 @@ jarvis.log
 
 verifica.jsonl
 riavvio.json
+# stato che Jarvis riscrive da solo
+consumi.json
+promemoria.json
+parcheggio.json
+bozze.json
