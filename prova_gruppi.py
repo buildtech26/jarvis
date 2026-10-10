@@ -79,6 +79,11 @@ CASI = [
     (["organizzami gli allenamenti della prossima settimana"], "pianifica_allenamenti"),
     (["oggi ho saltato la corsa"], "segna_allenamento"),
     (["ho fatto il corpo libero"], "segna_allenamento"),
+    (["cosa mi cucino stasera con ceci e riso?"], "consigli_alimentazione"),
+    (["quante calorie devo mangiare per dimagrire?"], "consigli_alimentazione"),
+    (["quanta pasta posso mangiare a pranzo?"], "consigli_alimentazione"),
+    (["cosa compro di proteico che costi poco?"], "consigli_alimentazione"),
+    (["ho sempre fame la sera, che faccio?"], "consigli_alimentazione"),
     # seguiti: la domanda da sola non dice niente, la precedente sì
     (["che treno prendo per Milano domani?", "e dopodomani?"], "cerca_treni"),
     (["quanto ho speso questo mese?", "e il mese scorso?"], "spese_riepilogo"),

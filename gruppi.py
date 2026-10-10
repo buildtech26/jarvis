@@ -111,6 +111,16 @@ fatto la corsa", "oggi l'ho saltato", "recuperalo": segna_allenamento. \
 Organizzare la settimana: pianifica_allenamenti (rifai=True solo se chiede di rifarla), mai crea_evento. Esercizi, \
 serie e carichi SOLO dalla scheda: non inventarne""",
     ),
+    "alimentazione": (
+        r"aliment|\bdiet|mangi|\bcibo|\bpast[oi]\b|colazion|pranz|\bcen[ae]\b|merend|spuntin|cucin|ricett|calori|"
+        r"\bkcal|protei|carboidrat|grass[io]|dimagr|perdere peso|\bpeso\b|\bpesarmi|fame|integrator|verdur|frutta|"
+        r"legum|\buova\b|porzion|\bgramm",
+        ["consigli_alimentazione"],
+        """- alimentazione (l'utente vuole perdere grasso, cucina da sé, budget stretto; non tieni un diario dei pasti): \
+per cosa mangiare, quanto, calorie, proteine, ricette, spesa economica, peso, fame: PRIMA consigli_alimentazione, poi \
+rispondi seguendo le linee guida e usando SOLO le calorie e le proteine scritte lì, con porzioni in grammi e \
+ingredienti economici. Se lì dice che mancano dei dati, dillo e spiega dove scriverli. Mai diete drastiche""",
+    ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"
         r"rotism|meccanic|controlli|reti logiche|completat|fatto il|ho finito",
