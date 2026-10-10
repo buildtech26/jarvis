@@ -22,6 +22,7 @@ import sapere
 import siti
 import spese
 import tools
+import verifica
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 # i modelli e le loro pause dopo un 429 sono in quota.py
 MAX_PASSI = 4  # quante chiamate a strumenti di fila prima di rispondere comunque
 MAX_STORIA = 12  # messaggi di conversazione tenuti in memoria
+MAX_RECENTI = 2  # domande precedenti di cui Gemini rivede i risultati degli strumenti
 
 NOME_UTENTE = os.getenv("JARVIS_NOME_UTENTE", "Mattia")
 
@@ -40,13 +42,21 @@ Hai accesso a internet e al PC SOLO tramite gli strumenti, e devi usarli:
 {regole}
 Non dire mai che non hai internet o che non puoi fare qualcosa che uno strumento fa: chiama lo strumento. \
 Non inventare dati: se uno strumento non trova nulla, dillo.
-Adesso è {ora} ({iso})."""
+Adesso è {ora} ({iso}).{recenti}"""
 
 
-def _sistema(regole: str) -> str:
-    """Prompt di sistema con le regole dei soli strumenti scelti (gruppi.py), l'ora attuale e la memoria, riletta ogni
-    volta: la nota può essere stata modificata in Obsidian."""
-    testo = SISTEMA.format(regole=regole, ora=tools.data_ora(), iso=f"{datetime.datetime.now():%Y-%m-%d %H:%M}")
+def _sistema(regole: str, recenti: list[str]) -> str:
+    """Prompt di sistema con le regole dei soli strumenti scelti (gruppi.py), l'ora attuale, i risultati degli strumenti
+    delle ultime domande e la memoria, riletta ogni volta: la nota può essere stata modificata in Obsidian."""
+    if recenti:
+        # la storia tiene solo domande e risposte: senza questi, a "hai guardato solo Ryanair?" il modello non vede più
+        # i voli trovati e li completa a memoria (Wizz Air inventata, 07/10)
+        recenti_testo = ("\n\nRisultati degli strumenti nelle ultime domande: usali per le domande che ne parlano, e se "
+                         "servono dati nuovi chiama di nuovo lo strumento.\n" + "\n---\n".join(recenti))
+    else:
+        recenti_testo = ""
+    testo = SISTEMA.format(regole=regole, ora=tools.data_ora(), iso=f"{datetime.datetime.now():%Y-%m-%d %H:%M}",
+                           recenti=recenti_testo)
     ricordi = memoria.contenuto()
     if ricordi:
         testo += f"\n\nCose che sai su {NOME_UTENTE} (dalla tua memoria permanente):\n{ricordi}"
@@ -54,6 +64,7 @@ def _sistema(regole: str) -> str:
 
 
 _usati: list[str] = []  # strumenti chiamati nella domanda in corso (chiedi è sotto lock, una domanda alla volta)
+_risultati: list[str] = []  # i loro risultati, per verifica.py e per le domande successive
 
 # Comandi diretti: (frase intera, nome, azione). Ogni frase qui risparmia almeno 2 richieste Gemini; le
 # espressioni descrivono la frase INTERA, così "cosa devo fare per arrivare a Roma" va comunque al modello
@@ -98,12 +109,15 @@ def _esegui(nome: str, args: dict, log) -> str:
         esito = funzione(**args) if funzione else f"Strumento '{nome}' inesistente."
     except Exception as e:  # il modello a volte passa argomenti sbagliati
         esito = f"Errore: {e}"
-    return str(esito)[:4000]
+    esito = str(esito)[:4000]
+    _risultati.append(f"{nome}: {esito}")
+    return esito
 
 
 class Jarvis:
     def __init__(self):
         self.storia: list[dict] = []
+        self.recenti: list[str] = []  # risultati degli strumenti delle ultime MAX_RECENTI domande che li hanno usati
         self.lock = threading.Lock()
         self.gemini = None
         if GEMINI_KEY:
@@ -140,6 +154,7 @@ class Jarvis:
 
     def _chiedi(self, testo: str, log) -> str:
         _usati.clear()
+        _risultati.clear()
         self.storia.append({"role": "user", "content": testo})
         risposta = self._comando_diretto(testo, log)
         errore = ""
@@ -170,6 +185,8 @@ class Jarvis:
 
         risposta = risposta.strip() or "Non ho una risposta, signore."
         self.storia.append({"role": "assistant", "content": risposta})
+        if _risultati:
+            self.recenti = (self.recenti + [f"Domanda: {testo}\n" + "\n".join(_risultati)])[-MAX_RECENTI:]
         return risposta
 
     def _chiedi_gemini(self, modello: str, log) -> str:
@@ -193,7 +210,7 @@ class Jarvis:
         strumenti, regole = gruppi.strumenti_e_regole(scelti, tools.PER_NOME)
         log(f"  [gruppi] {', '.join(scelti)} ({len(strumenti)} strumenti)")
         config = types.GenerateContentConfig(
-            system_instruction=_sistema(regole),
+            system_instruction=_sistema(regole, [r[:2500] for r in self.recenti]),
             tools=strumenti,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             thinking_config=types.ThinkingConfig(thinking_level="low"),
@@ -203,6 +220,29 @@ class Jarvis:
             types.Content(role="model" if m["role"] == "assistant" else "user", parts=[types.Part(text=m["content"])])
             for m in self.storia[-MAX_STORIA:]
         ]
+        risposta = self._ciclo(modello, config, contenuti, log)
+        dubbi = verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti))
+        if dubbi:
+            # un solo secondo tentativo, sugli stessi contenuti: i risultati già ottenuti non si richiedono
+            log(f"  [verifica] dati senza fonte: {'; '.join(dubbi)} — riprovo: {risposta[:80]!r}")
+            contenuti.append(types.Content(role="model", parts=[types.Part(text=risposta)]))
+            contenuti.append(types.Content(role="user", parts=[types.Part(text=verifica.correzione(dubbi))]))
+            risposta = self._ciclo(modello, config, contenuti, log)
+            if dubbi := verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti)):
+                log(f"  [verifica] ancora senza fonte: {'; '.join(dubbi)}, aggiungo l'avviso")
+                risposta = verifica.con_avviso(risposta, dubbi)
+        return risposta
+
+    def _fonti(self) -> list[str]:
+        """Da dove può venire legittimamente un dato: strumenti di adesso e delle ultime domande, domande dell'utente
+        (anche il contesto delle foto), memoria, ora attuale. Le risposte precedenti di Jarvis no: ripeterebbero
+        un dato inventato come se fosse verificato."""
+        domande = [m["content"] for m in self.storia if m["role"] == "user"]
+        return [*_risultati, *self.recenti, *domande, memoria.contenuto() or "",
+                f"{tools.data_ora()} {datetime.datetime.now():%H:%M}"]
+
+    def _ciclo(self, modello: str, config, contenuti: list, log) -> str:
+        """Domanda → strumenti → risposta, al massimo MAX_PASSI giri di strumenti."""
         for _ in range(MAX_PASSI):
             r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
             quota.registra(modello, "cervello")
@@ -214,8 +254,8 @@ class Jarvis:
                 types.Part.from_function_response(name=fc.name, response={"risultato": _esegui(fc.name, dict(fc.args or {}), log)})
                 for fc in r.function_calls
             ]))
-        config.tools = None
-        r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
+        r = self.gemini.models.generate_content(model=modello, contents=contenuti,
+                                                config=config.model_copy(update={"tools": None}))
         quota.registra(modello, "cervello")
         return r.text or ""
 
@@ -252,6 +292,7 @@ class Jarvis:
                 return None
             log(f"  [diretto] {nome}")
             _usati.append(nome)  # Telegram lo usa per mandare il segnaposto del parcheggio
+            _risultati.append(f"{nome}: {risposta}")  # "e in tutto quanto fa?" deve poter usare questi numeri
             return risposta
         m = re.match(r"^(?:jarvis,?\s+)?(?:apri|avvia|lancia|aprimi)\s+(?:il sito |sito |l'app |app |il |la |lo |l')?(.+)$", t)
         if m:
@@ -270,6 +311,7 @@ class Jarvis:
 
     def dimentica(self):
         self.storia.clear()
+        self.recenti.clear()
 
 
 if __name__ == "__main__":

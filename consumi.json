@@ -56,5 +56,10 @@
   "gemini-3.5-flash-lite": {
    "voce": 4
   }
+ },
+ "2026-10-10": {
+  "gemini-3.5-flash-lite": {
+   "cervello": 3
+  }
  }
 }
