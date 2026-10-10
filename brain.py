@@ -7,6 +7,8 @@ import datetime
 import os
 import re
 import threading
+import time
+import traceback
 
 from dotenv import load_dotenv
 
@@ -65,6 +67,18 @@ def _sistema(regole: str, recenti: list[str]) -> str:
 
 _usati: list[str] = []  # strumenti chiamati nella domanda in corso (chiedi è sotto lock, una domanda alla volta)
 _risultati: list[str] = []  # i loro risultati, per verifica.py e per le domande successive
+_chiamate: dict[str, int] = {}  # richieste Gemini mandate per la domanda in corso, per modello (anche quelle fallite)
+
+
+def _di_servizio(e: Exception) -> bool:
+    """Errori di Gemini o della rete (quota, credito, sovraccarico, timeout): ha senso provare un altro modello.
+    Tutto il resto è un errore nel codice di Jarvis, che un altro modello ripeterebbe identico: il 10/10
+    "name 'types' is not defined" è stato riprovato 6 volte su 3 modelli e spiegato come "Gemini non risponde"."""
+    import httpx
+    from google.genai import errors
+
+    return isinstance(e, (errors.APIError, errors.UnknownApiResponseError, httpx.HTTPError, ConnectionError,
+                          TimeoutError))
 
 # Comandi diretti: (frase intera, nome, azione). Ogni frase qui risparmia almeno 2 richieste Gemini; le
 # espressioni descrivono la frase INTERA, così "cosa devo fare per arrivare a Roma" va comunque al modello
@@ -131,7 +145,7 @@ class Jarvis:
     def chiedi(self, testo: str, log=print, canale: str = "") -> str:
         # voce, Telegram e finestra condividono modello e conversazione: una domanda alla volta
         with self.lock:
-            risposta = self._chiedi(testo, log)
+            risposta = self._chiedi(testo, log, canale)
         for ascoltatore in self.ascoltatori:
             try:
                 ascoltatore(canale, testo, risposta)
@@ -152,12 +166,18 @@ class Jarvis:
             except Exception as e:
                 print(f"[ascoltatore] {e}")
 
-    def _chiedi(self, testo: str, log) -> str:
+    def _chiedi(self, testo: str, log, canale: str) -> str:
         _usati.clear()
         _risultati.clear()
+        _chiamate.clear()
+        inizio = time.monotonic()
+        # una riga per domanda: senza, le righe [strumento] non dicono né quando né per quale domanda
+        log(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {canale or 'terminale'}: {testo[:150]!r}")
         self.storia.append({"role": "user", "content": testo})
         risposta = self._comando_diretto(testo, log)
+        diretto = risposta is not None
         errore = ""
+        falliti: list[str] = []
         if risposta is None and self.gemini:
             scartati: set[str] = set()  # modelli falliti per motivi diversi dal limite al minuto
             for _ in range(6):
@@ -167,8 +187,16 @@ class Jarvis:
                 try:
                     risposta = self._chiedi_gemini(modello, log)
                     break
-                except Exception as e:  # quota (429), rete assente, modello sovraccarico (503), credito (402)
+                except Exception as e:
+                    if not _di_servizio(e):
+                        log("  [errore interno]\n" + traceback.format_exc().rstrip())
+                        risposta = (f"Ho un guasto nel mio codice ({type(e).__name__}: {e}), signore: "
+                                    "riprovare non serve, i dettagli sono in jarvis.log.")
+                        falliti.append(f"{modello}: errore interno")
+                        break
+                    # quota (429), rete assente, modello sovraccarico (503), credito (402)
                     errore = str(e)
+                    falliti.append(f"{modello}: {errore[:40]}")
                     tipo = quota.segna_errore(modello, errore)
                     quota.registra(modello, "cervello", "429" if tipo else "altro")
                     log(f"  [gemini] {modello} non disponibile{' (limite al ' + tipo + ')' if tipo else ''}: {errore[:80]}")
@@ -187,6 +215,17 @@ class Jarvis:
         self.storia.append({"role": "assistant", "content": risposta})
         if _risultati:
             self.recenti = (self.recenti + [f"Domanda: {testo}\n" + "\n".join(_risultati)])[-MAX_RECENTI:]
+        # tempo e costo della domanda: una sola domanda può arrivare a ~20 richieste (riprova con tutti gli
+        # strumenti, secondo tentativo della verifica, fino a MAX_PASSI giri di strumenti)
+        if diretto:
+            come = f"comando diretto {_usati[0] if _usati else ''}".rstrip()
+        else:
+            come = ", ".join(f"{m} ×{n}" for m, n in _chiamate.items()) or "nessuna richiesta Gemini"
+            if _usati:
+                come += f" · strumenti: {', '.join(_usati)}"
+        if falliti:
+            come += f" · falliti: {'; '.join(falliti)}"
+        log(f"  [fine] {time.monotonic() - inizio:.1f} s · {come}")
         return risposta
 
     def _chiedi_gemini(self, modello: str, log) -> str:
@@ -250,8 +289,7 @@ class Jarvis:
         from google.genai import types
 
         for _ in range(MAX_PASSI):
-            r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
-            quota.registra(modello, "cervello")
+            r = self._genera(modello, contenuti, config)
             if not r.function_calls:
                 return r.text or ""
             # il contenuto del modello va rimandato intero: contiene le firme del ragionamento
@@ -260,10 +298,14 @@ class Jarvis:
                 types.Part.from_function_response(name=fc.name, response={"risultato": _esegui(fc.name, dict(fc.args or {}), log)})
                 for fc in r.function_calls
             ]))
-        r = self.gemini.models.generate_content(model=modello, contents=contenuti,
-                                                config=config.model_copy(update={"tools": None}))
-        quota.registra(modello, "cervello")
+        r = self._genera(modello, contenuti, config.model_copy(update={"tools": None}))
         return r.text or ""
+
+    def _genera(self, modello: str, contenuti: list, config):
+        _chiamate[modello] = _chiamate.get(modello, 0) + 1  # contata prima: anche una richiesta fallita è partita
+        r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
+        quota.registra(modello, "cervello")
+        return r
 
     def _spiega_errore(self, errore: str) -> str:
         """Senza Gemini non c'è un modello di riserva: meglio dire chiaramente cosa non va."""
@@ -329,4 +371,4 @@ if __name__ == "__main__":
         except (EOFError, KeyboardInterrupt):
             break
         if domanda:
-            print("Jarvis:", j.chiedi(domanda))
+            print("Jarvis:", j.chiedi(domanda, canale="terminale"))
