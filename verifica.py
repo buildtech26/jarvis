@@ -36,8 +36,13 @@ _ALLE = re.compile(r"\b(?:alle|all'|ore)\s*([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\b"
 _TRENO = re.compile(r"\b(?:Frecciarossa|Frecciargento|Frecciabianca|Italo|Intercity|Regionale(?: Veloce)?|FR|FA|FB|IC|RV)"
                     r"\s+(\d{3,5})\b")
 # azioni dichiarate al passato: senza uno strumento chiamato adesso non sono successe
-_AZIONE = re.compile(r"\bho (?:aperto|impostato|segnato|salvato|aggiunto|creato|inviato|mandato|spostato|cancellato|"
-                     r"eliminato|annotato|registrato|programmato|archiviato)\b", re.I)
+_AZIONE = re.compile(r"\bho (?:appena |già |anche |subito )?(?:aperto|impostato|segnato|salvato|aggiunto|creato|inviato|"
+                     r"mandato|spostato|cancellato|eliminato|annotato|registrato|programmato|archiviato|fissato|messo|"
+                     r"tolto|rimosso|chiuso|avviato|prenotato|attivato|disattivato)\b", re.I)
+# "Fatto." da solo: il 06/10 la voce ha captato una frase non rivolta a Jarvis ("manda maurizio") e lui ha risposto
+# "Fatto." senza chiamare niente. Solo a inizio frase e seguito da punteggiatura, per lasciare stare "di fatto",
+# "il fatto è che"
+_FATTO = re.compile(r"(?:^|[.!?]\s+)((?:ecco\s+)?fatto|eseguito)(?=\s*(?:[.,;:!—–-]|$))", re.I)
 # ricerche al passato: possono riferirsi alle domande precedenti ("ho cercato solo su Ryanair" dopo esplora_voli)
 _RICERCA = re.compile(r"\bho (?:cercato|controllato|verificato|letto|trovato|guardato)\b", re.I)
 
@@ -100,8 +105,11 @@ def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risul
         if re.search(rf"\b{re.escape(marchio)}\b", risposta, re.I) and marchio.lower() not in minuscolo:
             dubbi.append(marchio)
 
-    if not strumenti_usati and ((m := _AZIONE.search(risposta)) or (not strumenti_prima and (m := _RICERCA.search(risposta)))):
-        dubbi.append(f"«{m.group(0)}» senza aver usato strumenti")
+    if not strumenti_usati:
+        if (m := _AZIONE.search(risposta)) or (not strumenti_prima and (m := _RICERCA.search(risposta))):
+            dubbi.append(f"«{m.group(0)}» senza aver usato strumenti")
+        elif m := _FATTO.search(risposta):
+            dubbi.append(f"«{m.group(1)}» senza aver usato strumenti")
     return list(dict.fromkeys(dubbi))
 
 

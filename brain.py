@@ -268,7 +268,9 @@ class Jarvis:
             for m in self.storia[-MAX_STORIA:]
         ]
         risposta = self._ciclo(modello, config, contenuti, log)
-        dubbi = verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti))
+        # "ricordati che ..." lo salva comunque il ripiego di RICORDA dopo la risposta: lì "Fatto" è vero
+        usati = _usati if _usati or not RICORDA.match(self.storia[-1]["content"].strip()) else ["ricorda (ripiego)"]
+        dubbi = verifica.controlla(risposta, self._fonti(), usati, _risultati, bool(self.recenti))
         tentativi = [(risposta, dubbi)]
         if dubbi:
             # un solo secondo tentativo, sugli stessi contenuti: i risultati già ottenuti non si richiedono
@@ -276,7 +278,7 @@ class Jarvis:
             contenuti.append(types.Content(role="model", parts=[types.Part(text=risposta)]))
             contenuti.append(types.Content(role="user", parts=[types.Part(text=verifica.correzione(dubbi))]))
             risposta = self._ciclo(modello, config, contenuti, log)
-            dubbi = verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti))
+            dubbi = verifica.controlla(risposta, self._fonti(), usati, _risultati, bool(self.recenti))
             tentativi.append((risposta, dubbi))
             if dubbi:
                 log(f"  [verifica] ancora senza fonte: {'; '.join(dubbi)}, aggiungo l'avviso")

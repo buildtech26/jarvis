@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from google.genai import errors, types
 
 import brain
+import memoria
 import quota
 import tools
 import verifica
@@ -22,6 +23,7 @@ import verifica
 _temp = Path(tempfile.mkdtemp(prefix="prova_cervello_"))
 quota.FILE_CONSUMI = _temp / "consumi.json"
 verifica.FILE = _temp / "verifica.jsonl"
+memoria.FILE = _temp / "Memoria.md"
 tools.PER_NOME["prova_finta"] = lambda **k: "risultato finto 42"
 
 
@@ -111,7 +113,14 @@ def main() -> int:
                f"dopo {minuti} min: storia di {len(j.storia)} messaggi, recenti {len(j.recenti)}", righe)
         atteso(any("[contesto]" in r for r in righe) != resta, f"dopo {minuti} min: riga [contesto]", righe)
 
-    print(f"5 casi, errori: {len(errori)}")
+    # 6. "Fatto." senza strumenti: secondo tentativo; con "ricordati che" invece è vero (salva il ripiego)
+    risposta, g, righe = _prova("manda maurizio", [_testo("Fatto."), _testo("Non so a chi mandarlo, signore.")])
+    atteso(len(g.modelli) == 2 and risposta.startswith("Non so"), f"fatto: {len(g.modelli)} richieste, {risposta!r}", righe)
+    risposta, g, righe = _prova("ricordati che il prova-test è martedì", [_testo("Fatto, lo terrò a mente.")])
+    atteso(len(g.modelli) == 1 and risposta.startswith("Fatto"), f"ricordati: {len(g.modelli)} richieste", righe)
+    atteso("prova-test" in memoria.contenuto(), "ricordati: non salvato in memoria", righe)
+
+    print(f"6 casi, errori: {len(errori)}")
     return 1 if errori else 0
 
 

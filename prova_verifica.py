@@ -28,6 +28,12 @@ CASI = [
     ("Prendi il Frecciarossa 9409 delle 14:10, costa 39 €.",
      ["come arrivo a Roma domani?"], [], [], ["9409", "14:10", "39 €", "Frecciarossa"]),
     ("Ho aperto Google Flights con la ricerca per tre notti.", ["mostrami dal sito"], [], [], ["ho aperto"]),
+    # diario 06/10: la voce ha captato una frase non rivolta a Jarvis
+    ("Fatto. Speriamo che Maurizio sia più fortunato di Germanono.", ["ma di germanono non viene, manda maurizio"],
+     [], [], ["fatto"]),
+    ("Ecco fatto, Mattia.", ["spegni la luce"], [], [], ["ecco fatto"]),
+    ("Ti ho appena aperto Google Maps.", ["aprimi maps"], [], [], ["aperto"]),
+    ("Va bene. Ho fissato la call per venerdì.", ["fissa la call venerdì"], [], [], ["ho fissato"]),
     # --- buoni ---
     ("Parigi a 40 €, Barcellona a 45 € o Budapest a 56 €, tutte con Ryanair.",
      [VOLI, "4 giorni fuori l'italia a metà novembre"], ["esplora_voli"], [VOLI], []),
@@ -45,6 +51,9 @@ CASI = [
     ("Esci alle 13:40 per prendere il treno con calma.", [TRENI, "a che ora esco?"], ["cerca_treni"], [TRENI], []),
     ("La Francia ha circa 68 milioni di abitanti, signore.", ["quanti abitanti ha la Francia?"], [], [], []),
     ("Buongiorno Mattia, cosa posso fare per lei?", ["ciao"], [], [], []),
+    ("Di fatto conviene Barcellona. Il fatto è che a novembre piove meno.", ["meglio Parigi o Barcellona?"], [], [], []),
+    ("Ricevuto, li tengo d'occhio entrambi.", ["lascia li"], [], [], []),
+    ("Fatto, promemoria cancellato.", ["togli questo promemoria"], ["cancella_promemoria"], ["cancellato"], []),
     # prova reale del 10/10: vero, parla della ricerca della domanda prima (strumenti_prima)
     ("Ho cercato solo su Ryanair. Se preferisci apro Google Flights per le altre compagnie.",
      [VOLI, "hai guardato solo ryanair?"], [], [], [], True),

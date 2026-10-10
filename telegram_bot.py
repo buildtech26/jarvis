@@ -180,7 +180,7 @@ class BotTelegram:
             requests.post(f"{self.api}/sendPhoto", data={"chat_id": chat_id}, files={"photo": f}, timeout=60)
 
     def riavvia(self, chat_id):
-        self.invia(chat_id, "Mi riavvio, signore: torno tra un minuto circa.")
+        self.invia(chat_id, "Mi riavvio, signore: prima faccio le prove, poi torno tra un minuto circa.")
         # conferma a Telegram questo messaggio: altrimenti la copia nuova, che riparte senza offset, lo riceve
         # di nuovo e si riavvia all'infinito
         requests.get(f"{self.api}/getUpdates", params={"offset": self.aggiornamento + 1, "timeout": 0}, timeout=30)

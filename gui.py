@@ -341,7 +341,8 @@ class Finestra:
             import riavvio
 
             self._messaggio("Tu", testo, "tu")
-            self._messaggio("Jarvis", "Mi riavvio, signore: la finestra si riapre tra un minuto circa.", "jarvis")
+            self._messaggio("Jarvis", "Mi riavvio, signore: la finestra si riapre tra un minuto circa. "
+                                     "Se le prove falliscono resto come sono e le scrivo su Telegram.", "jarvis")
             riavvio.lancia(da_telegram=False)
             return
         self.occupato = True
