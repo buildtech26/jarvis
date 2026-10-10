@@ -12,6 +12,7 @@ import traceback
 
 from dotenv import load_dotenv
 
+import allenamento
 import calendario
 import gruppi
 import memoria
@@ -95,6 +96,9 @@ COMANDI = [
      r"(?: oggi| questa settimana| su notion)?", "attivita", lambda m: notion.attivita_in_breve()),
     (r"(?:(?:che )?cosa ho|che impegni ho|impegni(?: di)?|agenda(?: di)?) (oggi|domani)", "impegni",
      lambda m: calendario.impegni_in_breve(0 if m.group(1) == "oggi" else 1)),
+    (r"(?:(?:che |qual è l'|quale )?allenamento (?:ho |devo fare |c'è |di |per )?(oggi|domani)|"
+     r"(?:cosa|che) (?:faccio|devo fare|ho) (oggi|domani) in palestra|(?:la )?scheda di (oggi|domani))",
+     "seduta_allenamento", lambda m: allenamento.seduta_allenamento(next(g for g in m.groups() if g))),
     (r"(?:che tempo fa|che tempo farà|com'è il tempo|meteo|previsioni(?: del tempo)?)(?: oggi| domani)?" + _CITTA
      + r"(?: oggi| domani)?", "meteo", lambda m: tools.meteo((m.group(1) or "Bologna").strip())),
     (r"(?:(?:quali sono |elenca |dimmi )?i (?:miei )?promemoria|promemoria)", "lista_promemoria",

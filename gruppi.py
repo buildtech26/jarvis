@@ -98,6 +98,18 @@ mostra_alloggi, mai cerca_nel_browser""",
 cancella_evento solo dopo un sì esplicito dell'utente. "Ricordami" = promemoria su Telegram; "segna/metti in \
 calendario/appuntamento" = evento""",
     ),
+    "allenamento": (
+        r"allen|palestra|\bscheda\b|esercizi|\bcorsa\b|correre|corpo libero|workout|\bpesi\b|squat|addominal|"
+        r"piegament|trainer|fitness|muscol|\bsedut[ae]\b|giorn[oi] di riposo",
+        ["seduta_allenamento", "allenamenti_settimana", "scheda_allenamento", "pianifica_allenamenti",
+         "segna_allenamento"],
+        """- allenamenti (sei anche il suo personal trainer): "cosa faccio oggi in palestra", "che allenamento ho domani": \
+seduta_allenamento, e riporta riscaldamento ed esercizi per intero come sono scritti (è una richiesta di elenco). \
+"Come va la settimana", "quanti allenamenti ho fatto": allenamenti_settimana; "fammi vedere la scheda", "come \
+aumento i pesi": scheda_allenamento. "Ho fatto palestra", "oggi l'ho saltato", "recuperalo": segna_allenamento. \
+Organizzare la settimana: pianifica_allenamenti (rifai=True solo se chiede di rifarla), mai crea_evento. Esercizi, \
+serie e carichi SOLO dalla scheda: non inventarne""",
+    ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"
         r"rotism|meccanic|controlli|reti logiche|completat|fatto il|ho finito",

@@ -6,7 +6,7 @@ Riavvia Jarvis nel modo giusto e controlla che sia ripartito.
     ... -SenzaProve                                                             salta le prove (emergenza)
 
 Prima di chiudere qualcosa lancia pyflakes e le prove offline (prova_cervello, prova_gruppi, prova_verifica,
-prova_calendario): se
+prova_calendario, prova_allenamento): se
 una fallisce, la copia in esecuzione resta accesa con il codice di prima e l'errore arriva su Telegram. Il 10/10 un
 import mancante in brain.py faceva fallire ogni domanda con strumenti, e Jarvis rispondeva "Gemini non risponde".
 
@@ -60,7 +60,8 @@ if (-not $SenzaProve) {
     } else {
         Write-Output "uvx non trovato: salto pyflakes."
     }
-    foreach ($prova in 'prova_cervello.py', 'prova_gruppi.py', 'prova_verifica.py', 'prova_calendario.py') {
+    foreach ($prova in 'prova_cervello.py', 'prova_gruppi.py', 'prova_verifica.py', 'prova_calendario.py',
+                       'prova_allenamento.py') {
         $uscita = @(& (Join-Path $cartella '.venv\Scripts\python.exe') $prova 2>&1 | ForEach-Object { "$_" })
         if ($LASTEXITCODE -ne 0) { $problemi += "${prova}:`n" + (($uscita | Select-Object -Last 10) -join "`n") }
     }

@@ -1,0 +1,583 @@
+"""Personal trainer: la scheda è una nota Obsidian, gli allenamenti finiscono da soli in Google Calendar.
+
+Il giorno e l'ora scritti in "pianifica" nella scheda (domenica 18:00) Jarvis mette in calendario le sedute della
+settimana dopo, nei buchi fra le lezioni: la palestra prima di sera, corsa e corpo libero prima di mattina, altrimenti
+nell'altra fascia. Mezz'ora dopo la fine di ogni seduta chiede su Telegram se è stata fatta (✅/❌); se è saltata
+propone un recupero nei 3 giorni dopo. La fase della scheda (1-3) sale con le sedute fatte, non con le settimane.
+Gli eventi spostati o cancellati a mano si rileggono dal calendario ogni mezz'ora. Lo stato (id degli eventi, esiti)
+sta in allenamento.json, fuori da git; lo storico leggibile in Obsidian (Storico.md).
+"""
+import datetime
+import json
+import os
+import re
+import shutil
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import calendario
+
+CARTELLA = Path(os.getenv("JARVIS_ALLENAMENTO", Path.home() / "Desktop" / "obsidian" / "Jarvis" / "Allenamento"))
+FILE = Path(__file__).with_name("allenamento.json")
+MODELLO = Path(__file__).with_name("scheda_iniziale.md")  # copiata in Obsidian se la scheda non c'è
+_lock = threading.RLock()
+
+TIPI = ["Palestra A", "Palestra B", "Corsa", "Corpo libero"]
+_EMOJI = {"Palestra": "🏋️", "Corsa": "🏃", "Corpo libero": "🤸"}
+_GIORNI = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+_GIORNI_INTERI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
+# i giorni scelti per primi: con 5 sedute il riposo cade di giovedì e di domenica
+_PREFERENZA = [0, 1, 2, 4, 5, 3, 6]
+# ogni 4 sedute: palestra, corsa, palestra, corpo libero (le lettere della palestra si alternano fra le settimane)
+_CICLO = ["Palestra", "Corsa", "Palestra", "Corpo libero"]
+ATTESA = datetime.timedelta(minutes=30)  # dopo la fine della seduta, prima di chiedere com'è andata
+TROPPO_TARDI = datetime.timedelta(hours=36)  # PC spento più a lungo: non si chiede più
+SYNC_OGNI = 30 * 60
+_ultimo_sync = 0.0
+_pausa_fino = 0.0  # dopo un errore di calendario la pianificazione automatica aspetta 10 minuti
+
+_PREDEFINITE = {"inizio": "", "sedute a settimana": "5", "mattina": "07:00-09:00", "sera": "19:00-22:00",
+                "margine": "30", "durata palestra": "60", "durata corsa": "45", "durata corpo libero": "45",
+                "palestra": "", "pianifica": "domenica 18:00", "fase 2 dopo": "15", "fase 3 dopo": "35"}
+
+
+# --- scheda (Obsidian) ---
+
+def _scheda() -> str:
+    file = CARTELLA / "Scheda.md"
+    if not file.exists():
+        file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(MODELLO, file)
+    return file.read_text(encoding="utf-8")
+
+
+def _sezione(testo: str, titolo: str, livello: int) -> str:
+    """Il corpo della sezione con quel titolo (anche solo l'inizio: "Fase 1" trova "Fase 1 — 3 giri"), fino al
+    titolo successivo dello stesso livello o superiore. Le sottosezioni restano dentro."""
+    corpo, dentro = [], False
+    for riga in testo.splitlines():
+        m = re.match(r"(#+)\s+(.*)", riga)
+        if m and len(m.group(1)) <= livello:
+            if dentro:
+                break
+            dentro = len(m.group(1)) == livello and m.group(2).strip().lower().startswith(titolo.lower())
+            continue
+        if dentro:
+            corpo.append(riga)
+    return "\n".join(corpo).strip()
+
+
+def _impostazioni() -> dict:
+    valori = dict(_PREDEFINITE)
+    for riga in _sezione(_scheda(), "Impostazioni", 2).splitlines():
+        m = re.match(r"\s*[-*]\s*([^:]+?)\s*:\s*(.*)$", riga)
+        if m and m.group(1).lower() in valori:
+            valori[m.group(1).lower()] = m.group(2).strip()
+    return valori
+
+
+def _numero(imp: dict, chiave: str) -> int:
+    m = re.search(r"\d+", imp[chiave]) or re.search(r"\d+", _PREDEFINITE[chiave])
+    return int(m.group())
+
+
+def _finestra(imp: dict, chiave: str) -> tuple[datetime.time, datetime.time] | None:
+    """'07:00-09:00' → (7:00, 9:00); vuota o scritta male = fascia non usata."""
+    m = re.search(r"(\d{1,2})[:.](\d{2})\s*-\s*(\d{1,2})[:.](\d{2})", imp[chiave])
+    if not m:
+        return None
+    a, b, c, d = map(int, m.groups())
+    return datetime.time(a, b), datetime.time(c, d)
+
+
+def _inizio(imp: dict) -> datetime.date | None:
+    try:
+        return datetime.date.fromisoformat(imp["inizio"].strip()[:10])
+    except ValueError:
+        return None
+
+
+def _quando_pianificare(imp: dict) -> tuple[int, datetime.time]:
+    testo = imp["pianifica"].lower()
+    giorno = next((i for i, g in enumerate(_GIORNI_INTERI) if g.rstrip("ì") in testo), 6)
+    m = re.search(r"(\d{1,2})[:.](\d{2})", testo)
+    return giorno, datetime.time(int(m.group(1)), int(m.group(2))) if m else datetime.time(18, 0)
+
+
+def _base(tipo: str) -> str:
+    return "Palestra" if tipo.startswith("Palestra") else tipo
+
+
+def _durata(imp: dict, tipo: str) -> datetime.timedelta:
+    return datetime.timedelta(minutes=_numero(imp, f"durata {_base(tipo).lower()}"))
+
+
+def _fasce(imp: dict, tipo: str) -> list[tuple[datetime.time, datetime.time]]:
+    ordine = ["sera", "mattina"] if _base(tipo) == "Palestra" else ["mattina", "sera"]
+    return [f for f in (_finestra(imp, nome) for nome in ordine) if f]
+
+
+def _contenuto(tipo: str, fase: int) -> str:
+    """Riscaldamento ed esercizi di quella seduta nella fase; se la fase manca (scheda accorciata a mano) vale la
+    più alta presente."""
+    sezione = _sezione(_scheda(), tipo, 2)
+    if not sezione:
+        return f"(nella scheda manca la sezione '## {tipo}')"
+    righe = sezione.splitlines()
+    primo = next((i for i, r in enumerate(righe) if r.startswith("###")), len(righe))
+    intro = "\n".join(righe[:primo]).strip()
+    for f in range(fase, 0, -1):
+        esercizi = _sezione(sezione, f"Fase {f}", 3)
+        if esercizi:
+            return f"Fase {f}. {intro}\n{esercizi}".strip()
+    return sezione
+
+
+# --- stato (allenamento.json) e storico (Obsidian) ---
+
+def _carica() -> dict:
+    if not FILE.exists():
+        return {"prossimo": 1, "palestra": "A", "settimane": [], "sedute": []}
+    return json.loads(FILE.read_text(encoding="utf-8"))
+
+
+def _salva(stato: dict):
+    FILE.write_text(json.dumps(stato, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _adesso() -> datetime.datetime:
+    return datetime.datetime.now().astimezone()
+
+
+def _dt(iso: str) -> datetime.datetime:
+    return datetime.datetime.fromisoformat(iso).astimezone()
+
+
+def _ora(giorno: datetime.date, ora: datetime.time) -> datetime.datetime:
+    return datetime.datetime.combine(giorno, ora).astimezone()
+
+
+def _lunedi(giorno: datetime.date) -> datetime.date:
+    return giorno - datetime.timedelta(days=giorno.weekday())
+
+
+def _quando(s: dict) -> str:
+    d = _dt(s["inizio"])
+    return f"{_GIORNI[d.weekday()]} {d:%d/%m} alle {d:%H:%M}"
+
+
+def _fatte(stato: dict) -> int:
+    return sum(s["stato"] == "fatto" for s in stato["sedute"])
+
+
+def _fase(fatte: int, imp: dict) -> int:
+    return 3 if fatte >= _numero(imp, "fase 3 dopo") else 2 if fatte >= _numero(imp, "fase 2 dopo") else 1
+
+
+def _storico(s: dict):
+    file = CARTELLA / "Storico.md"
+    if not file.exists():
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text("# Storico allenamenti\n\nScritto da Jarvis a ogni esito (✅ fatto, ❌ saltato).\n\n",
+                        encoding="utf-8")
+    d = _dt(s["inizio"])
+    simbolo = {"fatto": "✅", "saltato": "❌"}.get(s["stato"], "·")
+    with file.open("a", encoding="utf-8") as f:
+        f.write(f"- {d:%Y-%m-%d} {_GIORNI[d.weekday()]} {d:%H:%M} · {s['tipo']} · fase {s['fase']} · {simbolo} {s['stato']}\n")
+
+
+# --- calendario ---
+
+def _occupati(giorno: datetime.date) -> list[tuple[datetime.datetime, datetime.datetime]]:
+    """Gli impegni con orario di quel giorno (una richiesta per giorno: Apps Script ne restituisce al massimo 50)."""
+    eventi = calendario._chiama("eventi", da=_ora(giorno, datetime.time(0)).isoformat(),
+                                a=_ora(giorno, datetime.time(23, 59)).isoformat(), cerca="")["eventi"]
+    return [(calendario._locale(e["inizio"]), calendario._locale(e["fine"])) for e in eventi if not e["tutto_il_giorno"]]
+
+
+def _slot(giorno, durata, fasce, occupati, margine, dopo) -> datetime.datetime | None:
+    """Il primo orario (a passi di 30 min, nelle fasce in ordine) libero da impegni con il margine attorno."""
+    for a, b in fasce:
+        t, limite = _ora(giorno, a), _ora(giorno, b)
+        while t + durata <= limite:
+            if t >= dopo and not any(x < t + durata + margine and y > t - margine for x, y in occupati):
+                return t
+            t += datetime.timedelta(minutes=30)
+    return None
+
+
+def _titolo(tipo: str) -> str:
+    # "Allenamento" nel titolo: è la parola con cui _sincronizza ritrova gli eventi
+    return f"{_EMOJI[_base(tipo)]} Allenamento: {tipo}"
+
+
+def _crea(stato: dict, imp: dict, tipo: str, inizio: datetime.datetime, **altro) -> dict:
+    fase = _fase(_fatte(stato), imp)
+    fine = inizio + _durata(imp, tipo)
+    ev = calendario._chiama("crea", titolo=_titolo(tipo), inizio=inizio.isoformat(), fine=fine.isoformat(),
+                            luogo=imp["palestra"] if _base(tipo) == "Palestra" else "",
+                            descrizione=f"{_contenuto(tipo, fase)}\n\nMesso in calendario da Jarvis.",
+                            tutto_il_giorno=False)["creato"]
+    seduta = {"n": stato["prossimo"], "id": ev["id"], "tipo": tipo, "fase": fase, "inizio": inizio.isoformat(),
+              "fine": fine.isoformat(), "stato": "in programma", **altro}
+    stato["prossimo"] += 1
+    stato["sedute"].append(seduta)
+    _salva(stato)  # dopo ogni evento: se il successivo fallisce, al nuovo tentativo questo giorno risulta già preso
+    return seduta
+
+
+def _sequenza(n: int, lettera: str, salta: int = 0) -> tuple[list[str], str]:
+    tipi = []
+    for i in range(salta, salta + n):
+        tipo = _CICLO[i % len(_CICLO)]
+        if tipo == "Palestra":
+            tipo, lettera = f"Palestra {lettera}", "B" if lettera == "A" else "A"
+        tipi.append(tipo)
+    return tipi, lettera
+
+
+def _della_settimana(stato: dict, lunedi: datetime.date) -> list[dict]:
+    return [s for s in stato["sedute"] if s["stato"] != "cancellato" and _lunedi(_dt(s["inizio"]).date()) == lunedi]
+
+
+def _pianifica(lunedi: datetime.date, dopo: datetime.datetime) -> str:
+    """Mette in calendario le sedute che mancano in quella settimana, nei giorni dopo `dopo`."""
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+        inizio = _inizio(imp)
+        gia = _della_settimana(stato, lunedi)
+        presi = {_dt(s["inizio"]).date() for s in gia}
+        quante = _numero(imp, "sedute a settimana") - len(gia)
+        candidati = [lunedi + datetime.timedelta(days=i) for i in _PREFERENZA]
+        candidati = [g for g in candidati if g not in presi and g >= dopo.date() and (not inizio or g >= inizio)]
+        create = []
+        if quante > 0 and candidati:
+            with ThreadPoolExecutor(max_workers=7) as esecutore:
+                occupati = dict(zip(candidati, esecutore.map(_occupati, candidati)))
+            margine = datetime.timedelta(minutes=_numero(imp, "margine"))
+            tutte = [f for f in (_finestra(imp, "mattina"), _finestra(imp, "sera")) if f]
+            lunga = max(_durata(imp, t) for t in TIPI)
+            # i giorni in ordine di preferenza, poi le sedute assegnate in ordine di data
+            scelti = sorted([g for g in candidati if _slot(g, lunga, tutte, occupati[g], margine, dopo)][:quante])
+            tipi, lettera = _sequenza(len(scelti), stato["palestra"], salta=len(gia))
+            for giorno, tipo in zip(scelti, tipi):
+                ora = _slot(giorno, _durata(imp, tipo), _fasce(imp, tipo), occupati[giorno], margine, dopo)
+                if ora:
+                    create.append(_crea(stato, imp, tipo, ora))
+            stato["palestra"] = lettera
+        if str(lunedi) not in stato["settimane"]:
+            stato["settimane"].append(str(lunedi))
+        _salva(stato)
+        tutte_sedute = sorted(_della_settimana(stato, lunedi), key=lambda s: s["inizio"])
+        prima = [s for s in _della_settimana(stato, lunedi - datetime.timedelta(days=7)) if s["stato"] != "in programma"]
+
+    testo = f"🗓 Allenamenti della settimana del {lunedi:%d/%m}"
+    if not create:
+        testo += (": non ho aggiunto niente, " + ("ci sono già tutte." if quante <= 0 else
+                  "non trovo buchi liberi nelle tue fasce (mattina e sera nella scheda)."))
+    else:
+        testo += " in calendario: " + "; ".join(f"{_quando(s)} {s['tipo']}" for s in create) + "."
+        giorni = {_dt(s["inizio"]).weekday() for s in tutte_sedute}
+        riposo = [_GIORNI[i] for i in range(7) if i not in giorni and lunedi + datetime.timedelta(days=i) >= dopo.date()]
+        if riposo:
+            testo += f" Riposo: {', '.join(riposo)}."
+        if len(create) < quante:
+            testo += f" Ne ho trovate {len(create)} su {quante}: negli altri giorni non c'era un buco libero."
+        testo += " Se un orario non va, spostalo dal calendario: me ne accorgo da solo."
+    if prima:
+        testo += f" La settimana scorsa: {sum(s['stato'] == 'fatto' for s in prima)} fatte su {len(prima)}."
+    return testo
+
+
+def _sincronizza():
+    """Rilegge dal calendario le sedute ancora da fare: spostate a mano → nuovo orario, cancellate → tolte."""
+    global _ultimo_sync
+    _ultimo_sync = time.time()
+    with _lock:
+        aperte = [s for s in _carica()["sedute"] if s["stato"] == "in programma"]
+    if not aperte:
+        return
+    da = _lunedi(min(_dt(s["inizio"]) for s in aperte).date())
+    a = max(_dt(s["inizio"]) for s in aperte).date() + datetime.timedelta(days=14)
+    eventi = calendario._chiama("eventi", da=_ora(da, datetime.time(0)).isoformat(),
+                                a=_ora(a, datetime.time(23, 59)).isoformat(), cerca="Allenamento")["eventi"]
+    if not eventi:
+        return  # nessun risultato con sedute in programma: più probabile un guasto della ricerca che tutto cancellato
+    per_id = {e["id"]: e for e in eventi}
+    with _lock:
+        stato = _carica()
+        for s in stato["sedute"]:
+            if s["stato"] != "in programma":
+                continue
+            ev = per_id.get(s["id"])
+            if ev is None:
+                s["stato"] = "cancellato"
+                print(f"[allenamento] {s['tipo']} di {_quando(s)} non è più in calendario")
+            elif calendario._locale(ev["inizio"]) != _dt(s["inizio"]) or calendario._locale(ev["fine"]) != _dt(s["fine"]):
+                s["inizio"] = calendario._locale(ev["inizio"]).isoformat()
+                s["fine"] = calendario._locale(ev["fine"]).isoformat()
+                print(f"[allenamento] {s['tipo']} spostata a {_quando(s)}")
+        _salva(stato)
+
+
+def controlla() -> list[tuple[str, list]]:
+    """Chiamata ogni minuto dal bot: pianifica le settimane che mancano e chiede l'esito delle sedute finite.
+    Restituisce (testo, righe di pulsanti) da mandare su Telegram."""
+    global _pausa_fino
+    if not calendario.configurato():
+        return []
+    adesso = _adesso()
+    messaggi = []
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+    inizio = _inizio(imp)
+    lun = _lunedi(adesso.date())
+    prossimo = lun + datetime.timedelta(days=7)
+    giorno_p, ora_p = _quando_pianificare(imp)
+    da_fare = []
+    # la settimana in corso non è stata pianificata (Jarvis spento all'ora giusta): i giorni che restano
+    if str(lun) not in stato["settimane"] and (not inizio or lun + datetime.timedelta(days=6) >= inizio):
+        da_fare.append((lun, adesso + datetime.timedelta(hours=1)))
+    if ((adesso.weekday(), adesso.time()) >= (giorno_p, ora_p) and str(prossimo) not in stato["settimane"]
+            and (not inizio or prossimo + datetime.timedelta(days=6) >= inizio)):
+        da_fare.append((prossimo, max(_ora(prossimo, datetime.time(0)), adesso + datetime.timedelta(hours=1))))
+    if da_fare and time.time() >= _pausa_fino:
+        for lunedi, dopo in da_fare:
+            try:
+                messaggi.append((_pianifica(lunedi, dopo), []))
+            except Exception as e:
+                print(f"[allenamento] pianificazione del {lunedi} non riuscita, riprovo tra 10 min: {e}")
+                _pausa_fino = time.time() + 600
+
+    finite = [s for s in stato["sedute"] if s["stato"] == "in programma" and adesso >= _dt(s["fine"]) + ATTESA]
+    if finite or time.time() - _ultimo_sync > SYNC_OGNI:
+        try:
+            _sincronizza()
+        except Exception as e:
+            print(f"[allenamento] calendario non riletto: {e}")
+    with _lock:
+        stato = _carica()
+        for s in stato["sedute"]:
+            if s["stato"] != "in programma" or adesso < _dt(s["fine"]) + ATTESA:
+                continue
+            if adesso - _dt(s["fine"]) > TROPPO_TARDI:
+                s["stato"] = "senza risposta"
+                _storico(s)
+                continue
+            s["stato"] = "chiesto"
+            messaggi.append((f"Allora, {s['tipo']} di {_quando(s)}: fatto?",
+                             [[("✅ Fatto", f"all:{s['n']}:fatto"), ("❌ Saltato", f"all:{s['n']}:saltato")]]))
+        _salva(stato)
+    return messaggi
+
+
+# --- esiti (pulsanti di Telegram e voce) ---
+
+def _recupero(s: dict, stato: dict, imp: dict) -> datetime.datetime | None:
+    """Il primo buco per la stessa seduta da oggi a 3 giorni, nei giorni senza altre sedute."""
+    adesso = _adesso()
+    presi = {_dt(x["inizio"]).date() for x in stato["sedute"] if x["stato"] in ("in programma", "chiesto", "fatto")}
+    giorni = [adesso.date() + datetime.timedelta(days=i) for i in range(4)]
+    giorni = [g for g in giorni if g not in presi]
+    if not giorni:
+        return None
+    with ThreadPoolExecutor(max_workers=4) as esecutore:
+        occupati = list(esecutore.map(_occupati, giorni))
+    margine = datetime.timedelta(minutes=_numero(imp, "margine"))
+    for giorno, occ in zip(giorni, occupati):
+        ora = _slot(giorno, _durata(imp, s["tipo"]), _fasce(imp, s["tipo"]), occ, margine,
+                    adesso + datetime.timedelta(hours=1))
+        if ora:
+            return ora
+    return None
+
+
+def _esito(s: dict, azione: str, stato: dict, imp: dict, quando: datetime.datetime | None = None) -> tuple[str, list]:
+    if azione == "fatto":
+        prima = _fase(_fatte(stato), imp)
+        s["stato"] = "fatto"
+        _storico(s)
+        fatte = _fatte(stato)
+        testo = f"✅ Segnato: {s['tipo']} fatta. Sedute fatte in tutto: {fatte}."
+        if _fase(fatte, imp) > prima:
+            testo += (f" Passi alla fase {_fase(fatte, imp)}: da adesso esercizi e serie cambiano; negli eventi già in "
+                      "calendario c'è ancora la fase di prima, chiedimi l'allenamento del giorno.")
+        _salva(stato)
+        return testo, []
+    if azione == "saltato":
+        s["stato"] = "saltato"
+        _storico(s)
+        _salva(stato)
+        testo = f"❌ Segnato: {s['tipo']} saltata."
+        risposte = [x for x in stato["sedute"] if x["stato"] in ("fatto", "saltato")]
+        if len(risposte) >= 2 and all(x["stato"] == "saltato" for x in risposte[-2:]):
+            testo += " Sono due di fila: anche 20 minuti di corpo libero contano più di niente."
+        ora = _recupero(s, stato, imp)
+        if not ora:
+            return testo + " Nei prossimi 3 giorni non vedo buchi liberi: si riparte dalla prossima.", []
+        breve = f"{_GIORNI[ora.weekday()]} {ora:%H:%M}"
+        return (testo + f" Posso recuperarla {_GIORNI[ora.weekday()]} {ora:%d/%m} alle {ora:%H:%M}.",
+                [[(f"🔁 Recupera {breve}", f"all:{s['n']}:rec:{ora:%Y%m%d%H%M}"), ("Lascia stare", f"all:{s['n']}:no")]])
+    if azione == "rec":
+        if s.get("recuperata"):
+            return "L'ho già rimessa in calendario.", []
+        nuova = _crea(stato, imp, s["tipo"], quando, recupero_di=s["n"])
+        s["recuperata"] = nuova["n"]
+        _salva(stato)
+        return f"🔁 In calendario: {s['tipo']} {_quando(nuova)}.", []
+    return "👍 Va bene, si riparte dalla prossima.", []
+
+
+def pulsante(dati: str) -> tuple[str, list]:
+    """Un pulsante premuto su Telegram: 'all:<n>:fatto|saltato|no' oppure 'all:<n>:rec:AAAAMMGGHHMM'."""
+    parti = dati.split(":")
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+        s = next((x for x in stato["sedute"] if str(x["n"]) == parti[1]), None)
+        if s is None:
+            return "Non trovo più questa seduta.", []
+        quando = None
+        if parti[2] == "rec":
+            quando = datetime.datetime.strptime(parti[3], "%Y%m%d%H%M").astimezone()
+        return _esito(s, parti[2], stato, imp, quando)
+
+
+def _giorno(testo: str) -> datetime.date:
+    testo = testo.strip().lower()
+    oggi = _adesso().date()
+    scarto = {"oggi": 0, "": 0, "domani": 1, "ieri": -1, "dopodomani": 2}
+    if testo in scarto:
+        return oggi + datetime.timedelta(days=scarto[testo])
+    return datetime.date.fromisoformat(testo[:10])
+
+
+# --- strumenti per Gemini ---
+
+def seduta_allenamento(giorno: str = "oggi") -> str:
+    """L'allenamento in calendario per un giorno, con riscaldamento ed esercizi della fase attuale della scheda.
+
+    Args:
+        giorno: 'oggi', 'domani', 'ieri' oppure 'AAAA-MM-GG'
+    """
+    data = _giorno(giorno)
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+    fase = _fase(_fatte(stato), imp)
+    sedute = [s for s in stato["sedute"] if s["stato"] != "cancellato" and _dt(s["inizio"]).date() == data]
+    if not sedute and str(_lunedi(data)) not in stato["settimane"]:
+        return (f"La settimana del {_lunedi(data):%d/%m} non è ancora in calendario: la pianifico da solo "
+                f"({imp['pianifica']}), oppure chiedimelo.")
+    if not sedute:
+        dopo = sorted((s for s in stato["sedute"] if s["stato"] == "in programma" and _dt(s["inizio"]).date() > data),
+                      key=lambda s: s["inizio"])
+        testo = f"{_GIORNI_INTERI[data.weekday()].capitalize()} {data:%d/%m}: nessun allenamento in calendario, riposo."
+        return testo + (f" Il prossimo: {dopo[0]['tipo']} {_quando(dopo[0])}." if dopo else "")
+    return "\n\n".join(f"{s['tipo']} {_quando(s)} ({s['stato']}).\n{_contenuto(s['tipo'], fase)}" for s in sedute)
+
+
+def allenamenti_settimana(settimana: str = "questa") -> str:
+    """Le sedute della settimana con il loro stato (in programma, fatto, saltato), le sedute fatte e la fase.
+
+    Args:
+        settimana: 'questa', 'prossima' o 'scorsa'
+    """
+    lunedi = _lunedi(_adesso().date()) + datetime.timedelta(days={"prossima": 7, "scorsa": -7}.get(settimana, 0))
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+    fatte, fase = _fatte(stato), _fase(_fatte(stato), imp)
+    sedute = sorted(_della_settimana(stato, lunedi), key=lambda s: s["inizio"])
+    if sedute:
+        righe = [f"{_quando(s)} {s['tipo']}: {s['stato']}" for s in sedute]
+    elif str(lunedi) in stato["settimane"]:
+        righe = ["Nessuna seduta: non c'erano buchi liberi."]
+    else:
+        righe = [f"Non ancora pianificata: lo faccio da solo ({imp['pianifica']}) o quando me lo chiedi."]
+    soglia = {1: _numero(imp, "fase 2 dopo"), 2: _numero(imp, "fase 3 dopo")}.get(fase)
+    prossima = f", la fase {fase + 1} parte a {soglia}" if soglia else ""
+    return (f"Settimana del {lunedi:%d/%m}:\n" + "\n".join(righe)
+            + f"\nSedute fatte in tutto: {fatte} (fase {fase}{prossima}).")
+
+
+def scheda_allenamento(seduta: str = "") -> str:
+    """La scheda dell'utente: una seduta ('Palestra A', 'Palestra B', 'Corsa', 'Corpo libero') nella fase attuale,
+    oppure, senza seduta, fase, struttura della settimana e regole per far salire i carichi.
+
+    Args:
+        seduta: nome della seduta; vuoto = panoramica
+    """
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+    fase = _fase(_fatte(stato), imp)
+    tipo = next((t for t in TIPI if seduta and t.lower().startswith(seduta.strip().lower())), None)
+    if tipo:
+        return f"{tipo}. {_contenuto(tipo, fase)}"
+    return (f"Fase {fase}, {_fatte(stato)} sedute fatte. {_numero(imp, 'sedute a settimana')} sedute a settimana: "
+            f"palestra A e B alternate, corsa, corpo libero. Fasce: mattina {imp['mattina'] or 'non usata'}, "
+            f"sera {imp['sera'] or 'non usata'}.\nCome progredire:\n{_sezione(_scheda(), 'Come progredire', 2)}")
+
+
+def pianifica_allenamenti(settimana: str = "prossima", rifai: bool = False) -> str:
+    """Mette in calendario gli allenamenti di una settimana nei buchi fra gli impegni (di solito lo fa da solo la
+    domenica sera). Riporta all'utente giorni e orari come scritti nel risultato.
+
+    Args:
+        settimana: 'questa' (solo i giorni che restano) o 'prossima'
+        rifai: True SOLO se l'utente chiede di rifare la settimana: toglie dal calendario le sedute future ancora
+            da fare e le rimette da capo
+    """
+    adesso = _adesso()
+    lunedi = _lunedi(adesso.date()) + datetime.timedelta(days=7 if settimana == "prossima" else 0)
+    with _lock:
+        imp = _impostazioni()
+        inizio = _inizio(imp)
+        if inizio and lunedi + datetime.timedelta(days=6) < inizio:
+            return f"La scheda comincia il {inizio:%d/%m} (Impostazioni della scheda): quella settimana è prima."
+        if rifai:
+            stato = _carica()
+            tolte = [s for s in _della_settimana(stato, lunedi) if s["stato"] == "in programma" and _dt(s["inizio"]) > adesso]
+            for s in tolte:
+                try:
+                    calendario._chiama("cancella", id=s["id"])
+                except RuntimeError as e:  # già cancellato a mano
+                    print(f"[allenamento] {s['tipo']} di {_quando(s)}: {e}")
+                s["stato"] = "cancellato"
+            palestre = [s["tipo"][-1] for s in tolte if _base(s["tipo"]) == "Palestra"]
+            if palestre:
+                stato["palestra"] = palestre[0]  # le lettere riprendono da dove erano
+            _salva(stato)
+        return _pianifica(lunedi, adesso + datetime.timedelta(hours=1))
+
+
+def segna_allenamento(esito: str, giorno: str = "oggi") -> str:
+    """Segna com'è andato l'allenamento in calendario di un giorno ("ho fatto palestra", "oggi l'ho saltato").
+
+    Args:
+        esito: 'fatto', 'saltato', oppure 'recupera' (solo se l'utente chiede di recuperarlo: lo rimette nel primo
+            buco libero dei prossimi 3 giorni)
+        giorno: 'oggi', 'ieri' oppure 'AAAA-MM-GG'
+    """
+    data = _giorno(giorno)
+    with _lock:
+        stato, imp = _carica(), _impostazioni()
+        sedute = [s for s in stato["sedute"] if s["stato"] != "cancellato" and _dt(s["inizio"]).date() == data]
+        if not sedute:
+            return f"Il {data:%d/%m} non c'era nessun allenamento in calendario."
+        s = sedute[-1]
+        if esito != "recupera":
+            testo, pulsanti = _esito(s, "fatto" if esito == "fatto" else "saltato", stato, imp)
+            if pulsanti:
+                testo += " Se vuoi recuperarla, dimmelo."
+            return testo
+        if s["stato"] != "saltato":
+            s["stato"] = "saltato"
+            _storico(s)
+            _salva(stato)
+        ora = _recupero(s, stato, imp)
+        if not ora:
+            return "Nei prossimi 3 giorni non vedo buchi liberi per recuperarla."
+        return _esito(s, "rec", stato, imp, ora)[0]
+
+
+STRUMENTI = [seduta_allenamento, allenamenti_settimana, scheda_allenamento, pianifica_allenamenti, segna_allenamento]

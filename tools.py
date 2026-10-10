@@ -12,6 +12,7 @@ import requests
 from ddgs import DDGS
 from dotenv import load_dotenv
 
+import allenamento
 import alloggi
 import analista
 import articoli
@@ -349,7 +350,7 @@ TUTTI = [
 if posta.configurata():
     TUTTI += posta.STRUMENTI
 if calendario.configurato():
-    TUTTI += calendario.STRUMENTI
+    TUTTI += calendario.STRUMENTI + allenamento.STRUMENTI
 if notion.configurato():
     TUTTI += notion.STRUMENTI
 if spese.configurato():

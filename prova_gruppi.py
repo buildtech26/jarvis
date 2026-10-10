@@ -73,6 +73,12 @@ CASI = [
     (["quanto ho speso da Esselunga?"], "movimenti_spese"),
     (["cosa ho pagato ieri?"], "movimenti_spese"),
     (["quante richieste gemini ho fatto oggi?"], "consumi"),
+    (["cosa devo fare domani in palestra?"], "seduta_allenamento"),
+    (["quanti allenamenti ho fatto questa settimana?"], "allenamenti_settimana"),
+    (["come devo aumentare i pesi?"], "scheda_allenamento"),
+    (["organizzami gli allenamenti della prossima settimana"], "pianifica_allenamenti"),
+    (["oggi ho saltato la corsa"], "segna_allenamento"),
+    (["ho fatto palestra"], "segna_allenamento"),
     # seguiti: la domanda da sola non dice niente, la precedente sì
     (["che treno prendo per Milano domani?", "e dopodomani?"], "cerca_treni"),
     (["quanto ho speso questo mese?", "e il mese scorso?"], "spese_riepilogo"),

@@ -8,7 +8,9 @@ from pathlib import Path
 
 import requests
 
+import allenamento
 import brain
+import calendario
 import documenti
 import foto
 import parcheggio
@@ -27,6 +29,11 @@ TASTIERA = {"keyboard": [[{"text": "📍 Ho parcheggiato", "request_location": T
 RIAVVIO = Path(__file__).with_name("riavvio.json")
 
 
+def _in_linea(pulsanti) -> dict:
+    """Pulsanti attaccati al messaggio; una lista vuota li toglie (con editMessageText)."""
+    return {"inline_keyboard": [[{"text": testo, "callback_data": dati} for testo, dati in riga] for riga in pulsanti]}
+
+
 class BotTelegram:
     def __init__(self, jarvis, token: str, utente_autorizzato: int):
         self.jarvis = jarvis
@@ -42,6 +49,38 @@ class BotTelegram:
             if tastiera:
                 dati["reply_markup"] = TASTIERA
             requests.post(f"{self.api}/sendMessage", json=dati, timeout=30)
+
+    def invia_pulsanti(self, chat_id, testo, pulsanti):
+        """pulsanti: righe di (etichetta, dati); i dati tornano in gestisci_pulsante quando ne premi uno."""
+        dati = {"chat_id": chat_id, "text": testo[:4000]}
+        if pulsanti:
+            dati["reply_markup"] = _in_linea(pulsanti)
+        requests.post(f"{self.api}/sendMessage", json=dati, timeout=30)
+
+    def gestisci_pulsante(self, cq):
+        # la risposta toglie la rotellina dal pulsante sul telefono
+        requests.post(f"{self.api}/answerCallbackQuery", json={"callback_query_id": cq["id"]}, timeout=10)
+        if cq.get("from", {}).get("id") != self.utente:
+            return
+        dati, msg = cq.get("data", ""), cq.get("message") or {}
+        if not dati.startswith("all:"):
+            return
+        print(f"[allenamento] pulsante {dati}")
+        testo, pulsanti = allenamento.pulsante(dati)
+        # l'esito si aggiunge al messaggio della domanda, che perde i pulsanti: non si può premere due volte
+        requests.post(f"{self.api}/editMessageText", json={
+            "chat_id": msg["chat"]["id"], "message_id": msg["message_id"],
+            "text": f"{msg.get('text', '')}\n\n{testo}"[:4000], "reply_markup": _in_linea(pulsanti)}, timeout=30)
+
+    def ciclo_allenamento(self):
+        """Pianificazione della settimana e domande "fatto?" dopo le sedute (allenamento.py), una volta al minuto."""
+        while True:
+            try:
+                for testo, pulsanti in allenamento.controlla():
+                    self.invia_pulsanti(self.utente, testo, pulsanti)
+            except Exception as e:
+                print(f"[allenamento] errore: {e}")
+            time.sleep(60)
 
     def manda_parcheggio(self, chat_id):
         punto = parcheggio.posizione()
@@ -226,6 +265,8 @@ class BotTelegram:
 
     def avvia(self):
         threading.Thread(target=self.ciclo_promemoria, daemon=True).start()
+        if calendario.configurato():
+            threading.Thread(target=self.ciclo_allenamento, daemon=True).start()
         print("Bot Telegram attivo.")
         self.presenta_pulsante()
         self.conferma_riavvio()
@@ -244,6 +285,12 @@ class BotTelegram:
                         except Exception as e:
                             print(f"[telegram] errore: {e}")
                             self.invia(agg["message"]["chat"]["id"], f"Qualcosa è andato storto: {e}")
+                    elif "callback_query" in agg:
+                        try:
+                            self.gestisci_pulsante(agg["callback_query"])
+                        except Exception as e:
+                            print(f"[telegram] errore del pulsante: {e}")
+                            self.invia(self.utente, f"Il pulsante non è andato: {e}")
             except requests.RequestException as e:
                 print(f"[telegram] connessione persa ({e}), riprovo tra 5 s")
                 time.sleep(5)
