@@ -8,6 +8,7 @@ senza strumenti andavano: per questo il primo caso chiama sempre uno strumento.
 """
 import sys
 import tempfile
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -50,8 +51,8 @@ class GeminiFinto:
         return passo
 
 
-def _prova(domanda: str, copione: list) -> tuple[str, GeminiFinto, list[str]]:
-    j = brain.Jarvis()
+def _prova(domanda: str, copione: list, j: brain.Jarvis | None = None) -> tuple[str, GeminiFinto, list[str]]:
+    j = j or brain.Jarvis()
     j.gemini = GeminiFinto(copione)
     righe: list[str] = []
     risposta = j.chiedi(domanda, log=righe.append, canale="prova")
@@ -99,7 +100,18 @@ def main() -> int:
     atteso(risposta.startswith("Sono le") and not g.modelli, f"diretto: {risposta!r}, {len(g.modelli)} richieste", righe)
     atteso(any("[fine]" in r and "comando diretto" in r for r in righe), "diretto: riga [fine]", righe)
 
-    print(f"4 casi, errori: {len(errori)}")
+    # 5. conversazione: resta dopo 5 minuti, si azzera dopo 31 (PAUSA_AZZERA)
+    for minuti, resta in ((5, True), (31, False)):
+        j = brain.Jarvis()
+        j.storia = [{"role": "user", "content": "voli per Tirana"}, {"role": "assistant", "content": "16,99 €"}]
+        j.recenti = ["Domanda: voli per Tirana\ncerca_voli: 16.99 €"]
+        j.ultima = time.time() - minuti * 60
+        _, g, righe = _prova("e il ritorno?", [_testo("Ecco.")], j)
+        atteso((len(j.storia) == 4) == resta and bool(j.recenti) == resta,
+               f"dopo {minuti} min: storia di {len(j.storia)} messaggi, recenti {len(j.recenti)}", righe)
+        atteso(any("[contesto]" in r for r in righe) != resta, f"dopo {minuti} min: riga [contesto]", righe)
+
+    print(f"5 casi, errori: {len(errori)}")
     return 1 if errori else 0
 
 

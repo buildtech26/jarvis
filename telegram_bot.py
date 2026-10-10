@@ -1,8 +1,11 @@
 """Bot Telegram: messaggi di testo e vocali, risponde solo al proprietario."""
+import json
 import os
+import subprocess
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 import requests
 
@@ -20,6 +23,8 @@ import voice
 # tastiera fissa sotto la chat: il pulsante chiede al telefono il GPS e lo manda con un tocco
 TASTIERA = {"keyboard": [[{"text": "📍 Ho parcheggiato", "request_location": True}]],
             "resize_keyboard": True, "is_persistent": True}
+# scritto da /riavvia: la copia nuova lo trova all'avvio e conferma su Telegram che è ripartita
+RIAVVIO = Path(__file__).with_name("riavvio.json")
 
 
 class BotTelegram:
@@ -28,6 +33,7 @@ class BotTelegram:
         self.api = f"https://api.telegram.org/bot{token}"
         self.file_api = f"https://api.telegram.org/file/bot{token}"
         self.utente = utente_autorizzato
+        self.aggiornamento = 0  # update_id del messaggio in gestione
 
     def invia(self, chat_id, testo, tastiera=False):
         # Telegram rifiuta messaggi oltre 4096 caratteri
@@ -103,6 +109,9 @@ class BotTelegram:
         if testo == "/schermo":
             self.manda_screenshot(chat_id)
             return
+        if testo == "/riavvia":
+            self.riavvia(chat_id)
+            return
         if testo.startswith("/invia"):
             # l'unica strada per spedire una mail: il modello prepara, tu confermi
             numero = testo.removeprefix("/invia").strip()
@@ -170,6 +179,33 @@ class BotTelegram:
         with open(percorso, "rb") as f:
             requests.post(f"{self.api}/sendPhoto", data={"chat_id": chat_id}, files={"photo": f}, timeout=60)
 
+    def riavvia(self, chat_id):
+        """Lancia riavvia.ps1, che chiude anche questa copia: deve sopravviverle, quindi parte staccata."""
+        self.invia(chat_id, "Mi riavvio, signore: torno tra un minuto circa.")
+        # conferma a Telegram questo messaggio: altrimenti la copia nuova, che riparte senza offset, lo riceve
+        # di nuovo e si riavvia all'infinito
+        requests.get(f"{self.api}/getUpdates", params={"offset": self.aggiornamento + 1, "timeout": 0}, timeout=30)
+        RIAVVIO.write_text(json.dumps({"chat_id": chat_id, "quando": time.strftime("%H:%M")}), encoding="utf-8")
+        comando = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                   str(Path(__file__).with_name("riavvia.ps1")), "-DaTelegram"]
+        flag = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+        try:
+            # partito dall'attività pianificata, Jarvis è dentro un job di Windows: meglio uscirne
+            subprocess.Popen(comando, creationflags=flag | subprocess.CREATE_BREAKAWAY_FROM_JOB, close_fds=True)
+        except OSError:  # il job non lo permette
+            subprocess.Popen(comando, creationflags=flag, close_fds=True)
+        print("[telegram] /riavvia: lanciato riavvia.ps1")
+
+    def conferma_riavvio(self):
+        if not RIAVVIO.exists():
+            return
+        try:
+            dati = json.loads(RIAVVIO.read_text(encoding="utf-8"))
+            self.invia(dati["chat_id"], f"Di nuovo operativo, signore (riavvio chiesto alle {dati['quando']}).")
+        except (OSError, ValueError, KeyError, requests.RequestException) as e:
+            print(f"[telegram] conferma del riavvio non mandata: {e}")
+        RIAVVIO.unlink(missing_ok=True)
+
     def ciclo_promemoria(self):
         while True:
             try:
@@ -201,6 +237,7 @@ class BotTelegram:
         threading.Thread(target=self.ciclo_promemoria, daemon=True).start()
         print("Bot Telegram attivo.")
         self.presenta_pulsante()
+        self.conferma_riavvio()
         offset = None
         while True:
             try:
@@ -209,6 +246,7 @@ class BotTelegram:
                 ).json()
                 for agg in aggiornamenti.get("result", []):
                     offset = agg["update_id"] + 1
+                    self.aggiornamento = agg["update_id"]
                     if "message" in agg:
                         try:
                             self.gestisci(agg["message"])

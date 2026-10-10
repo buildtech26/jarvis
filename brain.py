@@ -33,6 +33,9 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 MAX_PASSI = 4  # quante chiamate a strumenti di fila prima di rispondere comunque
 MAX_STORIA = 12  # messaggi di conversazione tenuti in memoria
 MAX_RECENTI = 2  # domande precedenti di cui Gemini rivede i risultati degli strumenti
+# dopo questa pausa la conversazione riparte da zero: senza, i voli chiesti la sera restavano nel prompt (fino a
+# 5000 caratteri di risultati) e il gruppo viaggi veniva ereditato dalla domanda del mattino dopo
+PAUSA_AZZERA = 30 * 60
 
 NOME_UTENTE = os.getenv("JARVIS_NOME_UTENTE", "Mattia")
 
@@ -132,6 +135,7 @@ class Jarvis:
     def __init__(self):
         self.storia: list[dict] = []
         self.recenti: list[str] = []  # risultati degli strumenti delle ultime MAX_RECENTI domande che li hanno usati
+        self.ultima = 0.0  # time.time() dell'ultimo scambio, per PAUSA_AZZERA
         self.lock = threading.Lock()
         self.gemini = None
         if GEMINI_KEY:
@@ -158,8 +162,10 @@ class Jarvis:
         lo conoscono, e arriva agli ascoltatori (diario, finestra). contesto è ciò che il modello vedrà al posto della
         domanda (per una foto: descrizione e testo trascritto)."""
         with self.lock:
+            self._scadenza(print)
             self.storia.append({"role": "user", "content": contesto or domanda})
             self.storia.append({"role": "assistant", "content": risposta})
+            self.ultima = time.time()
         for ascoltatore in self.ascoltatori:
             try:
                 ascoltatore(canale, domanda, risposta)
@@ -173,6 +179,7 @@ class Jarvis:
         inizio = time.monotonic()
         # una riga per domanda: senza, le righe [strumento] non dicono né quando né per quale domanda
         log(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {canale or 'terminale'}: {testo[:150]!r}")
+        self._scadenza(log)
         self.storia.append({"role": "user", "content": testo})
         risposta = self._comando_diretto(testo, log)
         diretto = risposta is not None
@@ -213,6 +220,7 @@ class Jarvis:
 
         risposta = risposta.strip() or "Non ho una risposta, signore."
         self.storia.append({"role": "assistant", "content": risposta})
+        self.ultima = time.time()
         if _risultati:
             self.recenti = (self.recenti + [f"Domanda: {testo}\n" + "\n".join(_risultati)])[-MAX_RECENTI:]
         # tempo e costo della domanda: una sola domanda può arrivare a ~20 richieste (riprova con tutti gli
@@ -356,6 +364,12 @@ class Jarvis:
                 log(f"  [diretto] apri_sito({dominio!r})")
                 return tools.apri_sito(dominio)
         return None  # tutto il resto lo decide il modello
+
+    def _scadenza(self, log):
+        """Azzera la conversazione se l'ultimo scambio è più vecchio di PAUSA_AZZERA (da chiamare sotto lock)."""
+        if self.storia and time.time() - self.ultima > PAUSA_AZZERA:
+            log(f"  [contesto] {int((time.time() - self.ultima) // 60)} min senza domande: conversazione azzerata")
+            self.dimentica()
 
     def dimentica(self):
         self.storia.clear()
