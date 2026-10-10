@@ -43,7 +43,8 @@ MOD_ALT, MOD_NOREPEAT, WM_HOTKEY = 0x0001, 0x4000, 0x0312
 
 def saluto() -> tuple:
     ora = time.localtime().tm_hour
-    testo = "Buongiorno" if 5 <= ora < 13 else "Buon pomeriggio" if ora < 18 else "Buonasera"
+    # dopo mezzanotte l'ora è 0-4: senza il 13 <= ora diceva "Buon pomeriggio"
+    testo = "Buongiorno" if 5 <= ora < 13 else "Buon pomeriggio" if 13 <= ora < 18 else "Buonasera"
     return ("Jarvis", f"{testo}, Mattia. Scrivi qui, oppure premi il microfono e parla.", "jarvis", "")
 
 
