@@ -1,8 +1,8 @@
 """Personal trainer: la scheda è una nota Obsidian, gli allenamenti finiscono da soli in Google Calendar.
 
-Il giorno e l'ora scritti in "pianifica" nella scheda (domenica 18:00) Jarvis mette in calendario le sedute della
-settimana dopo, nei buchi fra le lezioni: la palestra prima di sera, corsa e corpo libero prima di mattina, altrimenti
-nell'altra fascia. Mezz'ora dopo la fine di ogni seduta chiede su Telegram se è stata fatta (✅/❌); se è saltata
+Niente palestra: corpo libero in casa (A e B alternate) e corsa all'aperto. Il giorno e l'ora scritti in "pianifica"
+nella scheda (domenica 18:00) Jarvis mette in calendario le sedute della settimana dopo, nei buchi fra le lezioni: il
+corpo libero prima di sera, la corsa prima di mattina, altrimenti nell'altra fascia. Mezz'ora dopo la fine di ogni seduta chiede su Telegram se è stata fatta (✅/❌); se è saltata
 propone un recupero nei 3 giorni dopo. La fase della scheda (1-3) sale con le sedute fatte, non con le settimane.
 Gli eventi spostati o cancellati a mano si rileggono dal calendario ogni mezz'ora. Lo stato (id degli eventi, esiti)
 sta in allenamento.json, fuori da git; lo storico leggibile in Obsidian (Storico.md).
@@ -24,14 +24,16 @@ FILE = Path(__file__).with_name("allenamento.json")
 MODELLO = Path(__file__).with_name("scheda_iniziale.md")  # copiata in Obsidian se la scheda non c'è
 _lock = threading.RLock()
 
-TIPI = ["Palestra A", "Palestra B", "Corsa", "Corpo libero"]
-_EMOJI = {"Palestra": "🏋️", "Corsa": "🏃", "Corpo libero": "🤸"}
+TIPI = ["Corpo libero A", "Corpo libero B", "Corsa"]
+_EMOJI = {"Corpo libero": "🤸", "Corsa": "🏃"}
 _GIORNI = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
 _GIORNI_INTERI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 # i giorni scelti per primi: con 5 sedute il riposo cade di giovedì e di domenica
 _PREFERENZA = [0, 1, 2, 4, 5, 3, 6]
-# ogni 4 sedute: palestra, corsa, palestra, corpo libero (le lettere della palestra si alternano fra le settimane)
-_CICLO = ["Palestra", "Corsa", "Palestra", "Corpo libero"]
+# corpo libero e corsa a giorni alterni: con 5 sedute 3 di corpo libero e 2 di corsa. Le lettere A e B del corpo
+# libero si alternano anche fra una settimana e l'altra
+_CICLO = ["Corpo libero", "Corsa"]
+_ALTERNATA = "Corpo libero"
 ATTESA = datetime.timedelta(minutes=30)  # dopo la fine della seduta, prima di chiedere com'è andata
 TROPPO_TARDI = datetime.timedelta(hours=36)  # PC spento più a lungo: non si chiede più
 SYNC_OGNI = 30 * 60
@@ -39,8 +41,8 @@ _ultimo_sync = 0.0
 _pausa_fino = 0.0  # dopo un errore di calendario la pianificazione automatica aspetta 10 minuti
 
 _PREDEFINITE = {"inizio": "", "sedute a settimana": "5", "mattina": "07:00-09:00", "sera": "19:00-22:00",
-                "margine": "30", "durata palestra": "60", "durata corsa": "45", "durata corpo libero": "45",
-                "palestra": "", "pianifica": "domenica 18:00", "fase 2 dopo": "15", "fase 3 dopo": "35"}
+                "margine": "30", "durata corsa": "45", "durata corpo libero": "45",
+                "pianifica": "domenica 18:00", "fase 2 dopo": "15", "fase 3 dopo": "35"}
 
 
 # --- scheda (Obsidian) ---
@@ -107,7 +109,7 @@ def _quando_pianificare(imp: dict) -> tuple[int, datetime.time]:
 
 
 def _base(tipo: str) -> str:
-    return "Palestra" if tipo.startswith("Palestra") else tipo
+    return _ALTERNATA if tipo.startswith(_ALTERNATA) else tipo
 
 
 def _durata(imp: dict, tipo: str) -> datetime.timedelta:
@@ -115,7 +117,7 @@ def _durata(imp: dict, tipo: str) -> datetime.timedelta:
 
 
 def _fasce(imp: dict, tipo: str) -> list[tuple[datetime.time, datetime.time]]:
-    ordine = ["sera", "mattina"] if _base(tipo) == "Palestra" else ["mattina", "sera"]
+    ordine = ["mattina", "sera"] if _base(tipo) == "Corsa" else ["sera", "mattina"]
     return [f for f in (_finestra(imp, nome) for nome in ordine) if f]
 
 
@@ -139,7 +141,7 @@ def _contenuto(tipo: str, fase: int) -> str:
 
 def _carica() -> dict:
     if not FILE.exists():
-        return {"prossimo": 1, "palestra": "A", "settimane": [], "sedute": []}
+        return {"prossimo": 1, "lettera": "A", "settimane": [], "sedute": []}
     return json.loads(FILE.read_text(encoding="utf-8"))
 
 
@@ -216,8 +218,7 @@ def _titolo(tipo: str) -> str:
 def _crea(stato: dict, imp: dict, tipo: str, inizio: datetime.datetime, **altro) -> dict:
     fase = _fase(_fatte(stato), imp)
     fine = inizio + _durata(imp, tipo)
-    ev = calendario._chiama("crea", titolo=_titolo(tipo), inizio=inizio.isoformat(), fine=fine.isoformat(),
-                            luogo=imp["palestra"] if _base(tipo) == "Palestra" else "",
+    ev = calendario._chiama("crea", titolo=_titolo(tipo), inizio=inizio.isoformat(), fine=fine.isoformat(), luogo="",
                             descrizione=f"{_contenuto(tipo, fase)}\n\nMesso in calendario da Jarvis.",
                             tutto_il_giorno=False)["creato"]
     seduta = {"n": stato["prossimo"], "id": ev["id"], "tipo": tipo, "fase": fase, "inizio": inizio.isoformat(),
@@ -232,8 +233,8 @@ def _sequenza(n: int, lettera: str, salta: int = 0) -> tuple[list[str], str]:
     tipi = []
     for i in range(salta, salta + n):
         tipo = _CICLO[i % len(_CICLO)]
-        if tipo == "Palestra":
-            tipo, lettera = f"Palestra {lettera}", "B" if lettera == "A" else "A"
+        if tipo == _ALTERNATA:
+            tipo, lettera = f"{_ALTERNATA} {lettera}", "B" if lettera == "A" else "A"
         tipi.append(tipo)
     return tipi, lettera
 
@@ -261,12 +262,12 @@ def _pianifica(lunedi: datetime.date, dopo: datetime.datetime) -> str:
             lunga = max(_durata(imp, t) for t in TIPI)
             # i giorni in ordine di preferenza, poi le sedute assegnate in ordine di data
             scelti = sorted([g for g in candidati if _slot(g, lunga, tutte, occupati[g], margine, dopo)][:quante])
-            tipi, lettera = _sequenza(len(scelti), stato["palestra"], salta=len(gia))
+            tipi, lettera = _sequenza(len(scelti), stato.get("lettera", "A"), salta=len(gia))
             for giorno, tipo in zip(scelti, tipi):
                 ora = _slot(giorno, _durata(imp, tipo), _fasce(imp, tipo), occupati[giorno], margine, dopo)
                 if ora:
                     create.append(_crea(stato, imp, tipo, ora))
-            stato["palestra"] = lettera
+            stato["lettera"] = lettera
         if str(lunedi) not in stato["settimane"]:
             stato["settimane"].append(str(lunedi))
         _salva(stato)
@@ -501,8 +502,8 @@ def allenamenti_settimana(settimana: str = "questa") -> str:
 
 
 def scheda_allenamento(seduta: str = "") -> str:
-    """La scheda dell'utente: una seduta ('Palestra A', 'Palestra B', 'Corsa', 'Corpo libero') nella fase attuale,
-    oppure, senza seduta, fase, struttura della settimana e regole per far salire i carichi.
+    """La scheda dell'utente (niente palestra): una seduta ('Corpo libero A', 'Corpo libero B', 'Corsa') nella fase
+    attuale, oppure, senza seduta, fase, struttura della settimana e regole per rendere gli esercizi più difficili.
 
     Args:
         seduta: nome della seduta; vuoto = panoramica
@@ -514,7 +515,7 @@ def scheda_allenamento(seduta: str = "") -> str:
     if tipo:
         return f"{tipo}. {_contenuto(tipo, fase)}"
     return (f"Fase {fase}, {_fatte(stato)} sedute fatte. {_numero(imp, 'sedute a settimana')} sedute a settimana: "
-            f"palestra A e B alternate, corsa, corpo libero. Fasce: mattina {imp['mattina'] or 'non usata'}, "
+            f"corpo libero in casa (A e B alternate) e corsa a giorni alterni, niente palestra. Fasce: mattina {imp['mattina'] or 'non usata'}, "
             f"sera {imp['sera'] or 'non usata'}.\nCome progredire:\n{_sezione(_scheda(), 'Come progredire', 2)}")
 
 
@@ -543,15 +544,15 @@ def pianifica_allenamenti(settimana: str = "prossima", rifai: bool = False) -> s
                 except RuntimeError as e:  # già cancellato a mano
                     print(f"[allenamento] {s['tipo']} di {_quando(s)}: {e}")
                 s["stato"] = "cancellato"
-            palestre = [s["tipo"][-1] for s in tolte if _base(s["tipo"]) == "Palestra"]
-            if palestre:
-                stato["palestra"] = palestre[0]  # le lettere riprendono da dove erano
+            lettere = [s["tipo"][-1] for s in tolte if _base(s["tipo"]) == _ALTERNATA]
+            if lettere:
+                stato["lettera"] = lettere[0]  # le lettere riprendono da dove erano
             _salva(stato)
         return _pianifica(lunedi, adesso + datetime.timedelta(hours=1))
 
 
 def segna_allenamento(esito: str, giorno: str = "oggi") -> str:
-    """Segna com'è andato l'allenamento in calendario di un giorno ("ho fatto palestra", "oggi l'ho saltato").
+    """Segna com'è andato l'allenamento in calendario di un giorno ("ho fatto la corsa", "oggi l'ho saltato").
 
     Args:
         esito: 'fatto', 'saltato', oppure 'recupera' (solo se l'utente chiede di recuperarlo: lo rimette nel primo

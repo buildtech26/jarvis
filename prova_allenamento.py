@@ -88,11 +88,11 @@ def main() -> int:
     atteso(imp["inizio"] == "2026-10-12" and allenamento._numero(imp, "margine") == 30, "impostazioni", imp)
     atteso(allenamento._finestra(imp, "sera") == (datetime.time(19), datetime.time(22)), "fascia sera", imp["sera"])
     atteso([allenamento._fase(n, imp) for n in (0, 14, 15, 34, 35)] == [1, 1, 2, 2, 3], "soglie delle fasi")
-    a1, a3 = allenamento._contenuto("Palestra A", 1), allenamento._contenuto("Palestra A", 3)
-    atteso("Goblet" in a1 and "Riscaldamento" in a1 and "bilanciere" not in a1, "Palestra A fase 1", a1)
-    atteso("Squat con bilanciere" in a3, "Palestra A fase 3", a3)
-    atteso("3 giri" in allenamento._contenuto("Corpo libero", 1), "corpo libero fase 1")
-    atteso("Palestra B" not in allenamento._contenuto("Palestra A", 2), "sezioni separate")
+    a1, a3 = allenamento._contenuto("Corpo libero A", 1), allenamento._contenuto("Corpo libero A", 3)
+    atteso("Squat a corpo libero" in a1 and "Riscaldamento" in a1 and "zaino" not in a1, "Corpo libero A fase 1", a1)
+    atteso("Squat con lo zaino carico" in a3, "Corpo libero A fase 3", a3)
+    atteso("Rematore" in allenamento._contenuto("Corpo libero B", 1), "corpo libero B fase 1")
+    atteso("Rematore" not in allenamento._contenuto("Corpo libero A", 2), "sezioni separate")
 
     # 2. domenica alle 17 la settimana dopo non è ancora pianificata, quella in corso è prima dell'inizio
     atteso(controlla() == [] and cal.creati == 0, "niente prima dell'ora di pianificare", cal.creati)
@@ -103,11 +103,11 @@ def main() -> int:
     adesso[0] = _t("2026-10-11 18:05")
     messaggi = controlla()
     atteso(len(messaggi) == 1 and "in calendario" in messaggi[0][0], "messaggio della settimana", messaggi)
-    atteso(orari() == ["lun 19:30 Palestra A", "mar 19:00 Corsa", "gio 19:00 Palestra B", "ven 07:00 Corpo libero",
-                       "sab 19:00 Palestra A"], "giorni e orari", orari())
+    atteso(orari() == ["lun 19:30 Corpo libero A", "mar 19:00 Corsa", "gio 19:00 Corpo libero B", "ven 07:00 Corsa",
+                       "sab 19:00 Corpo libero A"], "giorni e orari", orari())
     atteso("Riposo: mer, dom" in messaggi[0][0], "giorni di riposo", messaggi[0][0])
-    atteso("Goblet" in cal.allenamenti()[0]["descrizione"], "esercizi nella descrizione")
-    atteso(allenamento._carica()["palestra"] == "B", "la settimana dopo comincia con la B")
+    atteso("Squat a corpo libero" in cal.allenamenti()[0]["descrizione"], "esercizi nella descrizione")
+    atteso(allenamento._carica()["lettera"] == "B", "la settimana dopo comincia con la B")
 
     # 4. un secondo giro non duplica niente
     adesso[0] = _t("2026-10-11 18:10")
@@ -115,28 +115,28 @@ def main() -> int:
 
     # 5. rifai: toglie le cinque e le rimette uguali, con le lettere di prima
     r = allenamento.pianifica_allenamenti("prossima", rifai=True)
-    atteso(len(cal.allenamenti()) == 5 and orari()[0] == "lun 19:30 Palestra A" and orari()[4].endswith("Palestra A"),
+    atteso(len(cal.allenamenti()) == 5 and orari()[0] == "lun 19:30 Corpo libero A" and orari()[4].endswith("Corpo libero A"),
            "rifai", f"{r} {orari()}")
 
-    # 6. lunedì alle 21:01 (fine 20:30 + 30 min) chiede com'è andata, con i pulsanti
+    # 6. lunedì alle 21:01 (fine 20:15 + 30 min) chiede com'è andata, con i pulsanti
     adesso[0] = _t("2026-10-12 21:01")
     messaggi = controlla()
-    atteso(len(messaggi) == 1 and "Palestra A" in messaggi[0][0] and len(messaggi[0][1][0]) == 2, "domanda", messaggi)
+    atteso(len(messaggi) == 1 and "Corpo libero A" in messaggi[0][0] and len(messaggi[0][1][0]) == 2, "domanda", messaggi)
     dati_fatto = messaggi[0][1][0][0][1]
     testo, pulsanti = allenamento.pulsante(dati_fatto)
     atteso(testo.startswith("✅") and not pulsanti, "pulsante fatto", testo)
     storico = (cartella / "Allenamento" / "Storico.md").read_text(encoding="utf-8")
-    atteso("Palestra A · fase 1 · ✅ fatto" in storico, "storico in Obsidian", storico)
+    atteso("Corpo libero A · fase 1 · ✅ fatto" in storico, "storico in Obsidian", storico)
     atteso(controlla() == [], "non richiede due volte")
 
-    # 7. corsa spostata a mano alle 20, Palestra B di giovedì cancellata a mano
-    corsa, palestra_b = cal.allenamenti()[1], cal.allenamenti()[2]
+    # 7. corsa spostata a mano alle 20, Corpo libero B di giovedì cancellato a mano
+    corsa, libero_b = cal.allenamenti()[1], cal.allenamenti()[2]
     corsa["inizio"], corsa["fine"] = _t("2026-10-13 20:00").isoformat(), _t("2026-10-13 20:45").isoformat()
-    del cal.eventi[palestra_b["id"]]
+    del cal.eventi[libero_b["id"]]
     adesso[0] = _t("2026-10-13 20:20")
     atteso(controlla() == [], "corsa spostata: non ancora finita")
     stati = {s["tipo"]: s["stato"] for s in allenamento._carica()["sedute"] if s["stato"] != "cancellato"}
-    atteso("Palestra B" not in stati, "cancellata a mano", stati)
+    atteso("Corpo libero B" not in stati, "cancellata a mano", stati)
 
     # 8. saltata: propone il recupero giovedì mattina (mercoledì è pieno, giovedì ora è libero)
     adesso[0] = _t("2026-10-13 21:16")
@@ -148,19 +148,19 @@ def main() -> int:
     atteso(testo.startswith("🔁") and "gio 07:00 Corsa" in orari(), "recupero in calendario", f"{testo} {orari()}")
     atteso(allenamento.pulsante(pulsanti[0][0][1])[0].startswith("L'ho già"), "recupero non doppio")
 
-    # 9. a voce: venerdì "ho fatto il corpo libero"; giorno senza sedute
+    # 9. a voce: venerdì "ho fatto la corsa"; giorno senza sedute
     adesso[0] = _t("2026-10-16 09:00")
     r = allenamento.segna_allenamento("fatto", "oggi")
-    atteso("Corpo libero fatta" in r and "in tutto: 2" in r, "segna a voce", r)
+    atteso("Corsa fatta" in r and "in tutto: 2" in r, "segna a voce", r)
     r = allenamento.seduta_allenamento("2026-10-14")
     atteso("riposo" in r and "Il prossimo: Corsa gio 15/10" in r, "giorno di riposo con il prossimo (il recupero)", r)
     r = allenamento.seduta_allenamento("domani")
-    atteso("Palestra A" in r and "Goblet" in r, "allenamento di domani", r)
+    atteso("Corpo libero A" in r and "Squat a corpo libero" in r, "allenamento di domani", r)
     r = allenamento.allenamenti_settimana()
     atteso("fatto" in r and "saltato" in r and "Sedute fatte in tutto: 2" in r, "settimana", r)
 
     # 10. comando diretto senza Gemini
-    for frase, giorno in [("cosa faccio domani in palestra", "domani"), ("allenamento di oggi", "oggi"),
+    for frase, giorno in [("cosa faccio domani di allenamento", "domani"), ("allenamento di oggi", "oggi"),
                           ("che allenamento ho domani", "domani")]:
         trovato = [m for schema, nome, _ in brain.COMANDI if nome == "seduta_allenamento"
                    and (m := re.fullmatch(schema, frase))]
