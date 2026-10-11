@@ -84,6 +84,8 @@ CASI = [
     (["dammi una ricetta per la cena"], "consigli_alimentazione"),
     (["cosa posso mangiare stasera?"], "calcola_ricetta"),
     (["quante calorie ha un piatto di pasta e ceci?"], "calcola_ricetta"),
+    (["dammi una ricetta per la cena"], "ricette_fit_with_fun"),
+    (["cerca su fit with fun qualcosa col merluzzo"], "ricette_fit_with_fun"),
     (["cosa ho mangiato ieri?"], "mangiato"),
     (["quante proteine mi mancano oggi?"], "mangiato"),
     (["cosa dice cronometer di questa settimana?"], "mangiato"),

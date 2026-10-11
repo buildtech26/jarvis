@@ -45,6 +45,18 @@ delle ricette.
   scremato 46 · 3,3 g; parmigiano o grana 390 · 33 g
 - Olio d'oliva 900 (un cucchiaio da 10 g = 90 kcal); verdure 20-35 · 1-3 g; mela 50; banana 90
 
+Ingredienti che compaiono spesso nelle ricette di Fit with Fun:
+
+- Albume 50 · 11 g; mozzarella 250 · 18 g; feta 265 · 14 g; formaggio light o spalmabile light 150 · 12 g;
+  prosciutto cotto 130 · 20 g; salmone o sgombro 200 · 20 g; proteine in polvere 380 · 75 g
+- Mandorle, noci, nocciole o arachidi 600 · 20 g; burro 750 · 1 g; burro di arachidi 600 · 25 g; burro di arachidi in
+  polvere 420 · 50 g; semi di chia o di lino 490 · 18 g; latte di cocco 200 · 2 g
+- Quinoa 370 · 14 g; farro 335 · 15 g; orzo 350 · 10 g; grano saraceno 340 · 13 g; cous cous 360 · 12 g; farina 350 ·
+  10 g; farina di cocco 400 · 20 g; fiocchi di patate 350 · 8 g; pasta fillo 300 · 8 g; fette biscottate 410 · 11 g;
+  amido di mais 350
+- Cacao amaro 350 · 20 g; cioccolato fondente 580 · 10 g; cocco rapé o disidratato 620 · 6 g; miele o sciroppo
+  d'acero 300; avocado 160 · 2 g; fragole o mirtilli 35 · 1 g
+
 ## Proteine che costano poco
 
 - Uova (circa 6 g di proteine l'una).

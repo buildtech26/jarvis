@@ -4,6 +4,8 @@ L'obiettivo è perdere grasso: calorie = metabolismo a riposo (formula di Miffli
 sotto il metabolismo a riposo. I pasti l'utente li segna in Cronometer (cronometer.py): con quei dati la quota di un
 pasto si calcola su quello che resta della giornata, e alle 21:30 arriva su Telegram il riepilogo del giorno (la
 domenica anche quello della settimana). Senza Cronometer nel .env restano i consigli con le quote fisse.
+Le idee per le ricette vengono dal sito Fit with Fun, che le pubblica con WP Recipe Maker: la sua API dà ingredienti,
+passaggi e kcal già divisi.
 """
 import datetime
 import json
@@ -11,7 +13,10 @@ import os
 import re
 import shutil
 import time
+from html import unescape
 from pathlib import Path
+
+import requests
 
 import cronometer
 from allenamento import _giorno, _sezione
@@ -34,11 +39,20 @@ _pausa_fino = 0.0  # dopo un errore di Cronometer il riepilogo riprova fra 10 mi
 _tentativi: dict[str, int] = {}
 # contate come la riga "verdure" della tabella; controllate prima della tabella ("fagiolini" non sono fagioli secchi)
 VERDURE = re.compile(r"spinac|pomodor|passata|pelati|zucchin|broccol|fagiolin|carot|cavol|verz|insalat|lattug|rucol|"
-                     r"peperon|melanzan|finocch|cipoll|aglio|funghi|minestron|bietol|cicori|zucca|piselli surgel|sedano",
-                     re.I)
-SENZA_KCAL = re.compile(r"\bsale|\bpepe|spezie|origano|basilico|prezzemol|rosmarino|peperoncin|aceto|limone|\bacqua",
-                        re.I)
+                     r"peperon|melanzan|finocch|cipoll|aglio|fungh|champignon|minestron|bietol|cicori|zucca|piselli surgel|"
+                     r"sedano", re.I)
+# vaniglia e cannella solo all'inizio: "proteine alla vaniglia" le kcal le ha
+SENZA_KCAL = re.compile(r"\bsale|\bpepe|spezie|origano|basilico|prezzemol|rosmarino|peperoncin|aceto|limone|\bacqua|"
+                        r"eritritol|xilitol|dolcificant|stevia|lievit|noce moscata|curcuma|"
+                        r"^(?:aroma |estratto di )?vanigli|^cannella", re.I)
 UOVO = 50  # grammi di un uovo medio senza guscio: "uova 3" sono 3 uova, non 3 grammi
+FIT_WITH_FUN = "https://fitwithfun.it"
+# parole tolte dalla ricerca: il sito vuole tutte le parole nella ricetta, e "idea" o "stasera" non ci sono mai
+NON_CERCARE = {"con", "col", "coi", "per", "una", "uno", "del", "dei", "della", "delle", "allo", "alla", "alle", "che", "qualcosa",
+               "ricetta", "ricette", "piatto", "idea", "idee", "stasera", "fit", "with", "fun"}
+# le portate scritte sul sito (in italiano e in inglese) che vanno bene per ogni pasto
+PORTATE = {"colazione": {"colazione", "breakfast"}, "pranzo": {"pranzo", "main course", "portata principale"},
+           "cena": {"cena", "main course", "portata principale"}, "spuntino": {"spuntino", "merenda", "snack"}}
 
 
 def _nota() -> str:
@@ -372,4 +386,98 @@ def calcola_ricetta(ingredienti: str) -> str:
     return testo
 
 
-STRUMENTI = [consigli_alimentazione, calcola_ricetta] + ([mangiato] if cronometer.configurato() else [])
+def _cerca_ricette(cosa: str, quante: int) -> list[dict]:
+    r = requests.get(f"{FIT_WITH_FUN}/wp-json/wp/v2/wprm_recipe", params={"search": cosa, "per_page": quante},
+                     timeout=20)
+    r.raise_for_status()
+    return [x["recipe"] for x in r.json()]
+
+
+def _link_ricette(articoli: list[int]) -> dict[int, str]:
+    """Gli indirizzi veri degli articoli delle ricette: con fitwithfun.it/?p=123 Gemini a volte perdeva il '?'."""
+    try:
+        r = requests.get(f"{FIT_WITH_FUN}/wp-json/wp/v2/posts", timeout=20,
+                         params={"include": ",".join(map(str, articoli)), "_fields": "id,link"})
+        r.raise_for_status()
+        return {a["id"]: a["link"] for a in r.json()}
+    except (requests.RequestException, ValueError, KeyError):
+        return {}
+
+
+def _html(testo: str) -> str:
+    return " ".join(unescape(re.sub(r"(?s)<[^>]+>", " ", testo or "")).split())
+
+
+def _ricetta_testo(ricetta: dict, link: str) -> str:
+    kcal = (ricetta.get("nutrition") or {}).get("calories")
+    porzioni = f"{ricetta.get('servings') or ''} {ricetta.get('servings_unit') or ''}".strip()
+    testa = _html(ricetta["name"]) + (f" — {kcal} kcal a porzione secondo il sito" if kcal else " — kcal non indicate")
+    testa += (f", dosi per {porzioni}" if porzioni else "") + (f", {ricetta['total_time']} minuti"
+                                                                 if ricetta.get("total_time") else "")
+    ingredienti = []
+    for i in ricetta.get("ingredients_flat") or []:
+        if i.get("type") == "group":  # un titolo come "Per la salsa"
+            ingredienti.append(_html(i.get("name")) + ":")
+            continue
+        note = "" if "<a" in (i.get("notes") or "") else _html(i.get("notes"))  # "Lo trovi qui" con il link al negozio
+        ingredienti.append(" ".join(x for x in [_html(i.get("amount")), _html(i.get("unit")), _html(i.get("name")),
+                                               f"({note})" if note else ""] if x))
+    passaggi = " | ".join(_html(p.get("text")) for p in ricetta.get("instructions_flat") or []
+                          if p.get("type") != "group" and _html(p.get("text")))
+    if len(passaggi) > 600:
+        passaggi = passaggi[:600].rsplit(" ", 1)[0] + "…"
+    return f"{testa}\nIngredienti: {'; '.join(ingredienti)}\nPassaggi: {passaggi}\nLink: {link}"
+
+
+def _adatta(ricetta: dict, pasto: str) -> bool:
+    """Se la ricetta va bene per il pasto, secondo le portate scritte sul sito (senza pasto vanno bene tutte)."""
+    tag = ricetta.get("tags")
+    portate = {c.get("name", "").lower() for c in (tag.get("course") or [] if isinstance(tag, dict) else [])}
+    return pasto not in PORTATE or bool(portate & PORTATE[pasto])
+
+
+def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
+    """Ricette dal sito Fit with Fun (fitwithfun.it), dove l'utente prende le idee: sane, proteiche, con nome, kcal a
+    porzione secondo il sito, ingredienti, passaggi e link. Da usare ogni volta che c'è da proporre una ricetta: la
+    ricetta da proporre è una di queste.
+
+    Args:
+        cosa: uno o due ingredienti o il tipo di piatto, in italiano ('pollo', 'ceci', 'merluzzo', 'frittata',
+            'porridge salato')
+        pasto: 'colazione', 'pranzo', 'cena' o 'spuntino' (solo le ricette adatte a quel pasto); vuoto se non conta
+    """
+    pasto = pasto.strip().lower()
+    parole = [p for p in re.findall(r"[a-zà-ù]{3,}", cosa.lower()) if p not in NON_CERCARE]
+    if not parole:
+        return "Dimmi almeno un ingrediente o un tipo di piatto da cercare su Fit with Fun."
+    try:
+        ricette = [r for r in _cerca_ricette(" ".join(parole), 20) if _adatta(r, pasto)]
+        if not ricette and len(parole) > 1:
+            # nessuna ricetta con tutte le parole: si cerca parola per parola e vincono quelle che ne hanno di più
+            radici = {_radice(p) for p in parole}
+            trovate = {}
+            for p in parole:
+                for r in _cerca_ricette(p, 20):
+                    testo = " ".join([r["name"]] + [i.get("name") or "" for i in r.get("ingredients_flat") or []])
+                    punti = sum(radice in testo.lower() for radice in radici)
+                    if punti and _adatta(r, pasto):
+                        trovate[r["id"]] = (punti, r)
+            ricette = [r for _, r in sorted(trovate.values(), key=lambda x: -x[0])]
+    except (requests.RequestException, ValueError, KeyError) as e:
+        return f"Fit with Fun non risponde ({e}): proponi una ricetta tua e di' che non viene dal sito."
+    if not ricette:
+        return (f"Su Fit with Fun nessuna ricetta{' da ' + pasto if pasto in PORTATE else ''} per '{cosa}': "
+                "proponi una ricetta tua e di' che non viene dal sito.")
+    ricette = ricette[:3]
+    articoli = [int(r.get("parent_post_id") or 0) for r in ricette]  # l'API lo dà a volte come stringa
+    link = _link_ricette([a for a in articoli if a])
+    elenco = "\n\n".join(f"{n}. " + _ricetta_testo(r, link.get(a) or f"{FIT_WITH_FUN}/?p={a or r['id']}")
+                         for n, (r, a) in enumerate(zip(ricette, articoli), 1))
+    return (f"Ricette da Fit with Fun:\n\n{elenco}\n\nProponi UNA di queste, non una ricetta tua: la più economica, meglio se senza proteine in polvere o "
+            "prodotti di marca. Tieni i suoi ingredienti e i suoi passaggi, rifai le dosi per una persona e per le kcal "
+            "del pasto, in grammi, e calcola kcal e proteine con calcola_ricetta. Di' che viene da Fit with Fun e dai "
+            "il link. Inventane una tua solo se nessuna di queste è un pasto vero, e in quel caso dillo.")
+
+
+STRUMENTI = [consigli_alimentazione, calcola_ricetta, ricette_fit_with_fun] + (
+    [mangiato] if cronometer.configurato() else [])

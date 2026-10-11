@@ -142,6 +142,55 @@ def main() -> int:
     atteso(cronometer._macro(riga) == {"kcal": 1712.5, "proteine": 101.3, "carboidrati": 180.2, "grassi": 55}
            and cronometer._data(riga) == domenica, "colonne del CSV", cronometer._macro(riga))
 
+    # ingredienti delle ricette di Fit with Fun: il grano saraceno finiva su "parmigiano o grana", il cacao magro sullo
+    # yogurt magro; dolcificanti e lievito non hanno kcal, le proteine alla vaniglia sì
+    r = alimentazione.calcola_ricetta("farina di grano saraceno 100, cacao magro 10, albume 100, funghi 100, "
+                                      "eritritolo 10, lievito per dolci 5, proteine alla vaniglia 30")
+    atteso("(come grano saraceno): 340 kcal" in r and "(come cacao amaro)" in r and "(come albume): 50 kcal" in r
+           and "(come verdure)" in r and "(come proteine in polvere): 114 kcal" in r and "eritritolo" not in r
+           and "Non contati" not in r, "ingredienti di Fit with Fun", r)
+
+    # --- ricette di Fit with Fun (sito finto: niente rete) ---
+    def ricetta(id, nome, ingredienti, portate=("Cena", "Pranzo")):
+        return {"id": id, "parent_post_id": str(id + 1000), "name": nome, "nutrition": {"calories": 400}, "servings": 1,
+                "tags": {"course": [{"name": p} for p in portate]},
+                "servings_unit": "persona", "total_time": "10",
+                "ingredients_flat": [{"type": "ingredient", "amount": "1", "unit": "", "name": n, "notes": ""}
+                                     for n in ingredienti],
+                "instructions_flat": [{"type": "instruction", "text": "<p>Cuoci tutto &amp; servi.</p>"}]}
+
+    sito = {"pollo": [ricetta(1, "Pollo al curry", ["petto di pollo", "curry"]),
+                      ricetta(2, "Pollo e piselli", ["petto di pollo", "piselli"])],
+            "piselli": [ricetta(2, "Pollo e piselli", ["petto di pollo", "piselli"]),
+                        ricetta(3, "Vellutata di piselli", ["piselli", "patate"])],
+            "ceci": [ricetta(4, "Brownies ai ceci", ["ceci", "cacao"], ("Dessert", "Merenda")),
+                     ricetta(5, "Burger di ceci", ["ceci", "quinoa"], ("Main Course",))]}
+    cercate = []
+
+    def cerca(cosa, quante):
+        cercate.append(cosa)
+        return sito.get(cosa, [])[:quante]
+
+    alimentazione._cerca_ricette = cerca
+    alimentazione._link_ricette = lambda articoli: {1002: "https://fitwithfun.it/pollo-e-piselli/"}
+    r = alimentazione.ricette_fit_with_fun("un'idea per cena col pollo")
+    atteso(cercate == ["cena pollo", "cena", "pollo"] and "Pollo al curry" in r, "parole inutili tolte", (cercate, r))
+    cercate.clear()
+    r = alimentazione.ricette_fit_with_fun("pollo e piselli")
+    atteso(cercate == ["pollo piselli", "pollo", "piselli"] and r.index("Pollo e piselli") < r.index("Pollo al curry")
+           and r.count("Pollo e piselli") == 1, "parola per parola, prima chi le ha tutte", (cercate, r))
+    atteso("Cuoci tutto & servi." in r and "Link: https://fitwithfun.it/pollo-e-piselli/" in r
+           and "Link: https://fitwithfun.it/?p=1001" in r and "400 kcal a porzione" in r,
+           "testo della ricetta (link vero, o ?p= se il sito non lo dà)", r)
+    r = alimentazione.ricette_fit_with_fun("tofu")
+    atteso("nessuna ricetta" in r, "niente trovato", r)
+    r = alimentazione.ricette_fit_with_fun("ceci", "pranzo")
+    atteso("Burger di ceci" in r and "Brownies" not in r, "solo le ricette da pranzo", r)
+    r = alimentazione.ricette_fit_with_fun("ceci", "spuntino")
+    atteso("Brownies" in r and "Burger" not in r, "solo le ricette da spuntino", r)
+    r = alimentazione.ricette_fit_with_fun("ceci", "colazione")
+    atteso("nessuna ricetta da colazione" in r, "niente da colazione", r)
+
     print(f"prova_alimentazione: errori {errori}")
     return 1 if errori else 0
 

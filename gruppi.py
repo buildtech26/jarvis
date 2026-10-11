@@ -114,8 +114,8 @@ serie e carichi SOLO dalla scheda: non inventarne""",
     "alimentazione": (
         r"aliment|\bdiet|mangi|\bcibo|\bpast[oi]\b|colazion|pranz|\bcen[ae]\b|merend|spuntin|cucin|ricett|calori|"
         r"\bkcal|protei|carboidrat|grass[io]|dimagr|perdere peso|\bpeso\b|\bpesarmi|fame|integrator|verdur|frutta|"
-        r"legum|\buova\b|porzion|\bgramm|cronometer|macro\b",
-        ["consigli_alimentazione", "calcola_ricetta", "mangiato"],
+        r"legum|\buova\b|porzion|\bgramm|cronometer|macro\b|fit ?with ?fun",
+        ["consigli_alimentazione", "calcola_ricetta", "ricette_fit_with_fun", "mangiato"],
         """- alimentazione (l'utente vuole perdere grasso, cucina da sé, budget stretto; segna i pasti in Cronometer): \
 "cosa ho mangiato oggi/ieri", "quante proteine mi mancano", "come sono andato questa settimana": mangiato. Per cosa \
 mangiare, quanto, calorie, proteine, ricette, spesa economica, peso, fame: PRIMA consigli_alimentazione, poi \
@@ -123,12 +123,16 @@ rispondi seguendo le linee guida e usando SOLO le calorie e le proteine scritte 
 ingredienti economici. Se lì dice che mancano dei dati, dillo e spiega dove scriverli. Mai diete drastiche
 - "cosa mangio stasera", "cosa cucino a pranzo", "dammi una ricetta": consigli_alimentazione con il pasto \
 (stasera = cena), poi proponi UNA ricetta per una persona, anche se mancano i dati (allora con le porzioni di \
-riferimento della nota). Scegli gli ingredienti (economici; se l'utente dice cosa ha in casa usa quelli; non ripetere \
-un piatto già proposto nella conversazione) e passali a calcola_ricetta con i grammi di OGNI ingrediente; se il totale \
-è lontano dalle kcal del pasto cambia le dosi e richiamalo. Poi rispondi con: il nome del piatto, gli ingredienti con \
-i grammi in una frase, i passaggi in frasi brevi nell'ordine in cui si fanno, il tempo, e kcal e proteine totali \
-COPIATE dal risultato di calcola_ricetta (mai calcoli tuoi). È una richiesta esplicita: riporta la ricetta per \
-intero, senza il limite delle tre frasi. Chiudi offrendo un'alternativa in una riga""",
+riferimento della nota). La ricetta si prende da Fit with Fun: ricette_fit_with_fun con l'ingrediente principale (se \
+l'utente dice cosa ha in casa usa quello; altrimenti una proteina economica della nota, o il tipo di piatto) e lo \
+stesso pasto, e proponi UNA delle ricette trovate, non una tua: la più economica, scartando quelle con proteine in \
+polvere o prodotti di marca se ce n'è una con ingredienti normali; non ripetere un piatto già proposto nella \
+conversazione. Solo se il sito non trova niente di adatto inventala tu con ingredienti economici. Poi passa gli ingredienti a calcola_ricetta con i grammi di OGNI \
+ingrediente per UNA persona (converti cucchiai, scatolette e pezzi in grammi); se il totale è lontano dalle kcal del \
+pasto cambia le dosi e richiamalo. Poi rispondi con: il nome del piatto, gli ingredienti con i grammi in una frase, i \
+passaggi in frasi brevi nell'ordine in cui si fanno, il tempo, e kcal e proteine totali COPIATE dal risultato di \
+calcola_ricetta (mai calcoli tuoi né le kcal del sito); se viene da Fit with Fun dillo e dai il link. È una richiesta \
+esplicita: riporta la ricetta per intero, senza il limite delle tre frasi. Chiudi offrendo un'alternativa in una riga""",
     ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"
