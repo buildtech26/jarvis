@@ -100,10 +100,11 @@ calendario/appuntamento" = evento""",
     ),
     "allenamento": (
         r"allen|palestra|\bscheda\b|esercizi|\bcorsa\b|correre|corpo libero|workout|\bpesi\b|squat|addominal|"
-        r"piegament|trainer|fitness|muscol|\bsedut[ae]\b|giorn[oi] di riposo",
+        r"piegament|trainer|fitness|muscol|\bsedut[ae]\b|giorn[oi] di riposo|tennis|\bpartit[ae]\b",
         ["seduta_allenamento", "allenamenti_settimana", "scheda_allenamento", "pianifica_allenamenti",
          "segna_allenamento"],
-        """- allenamenti (sei anche il suo personal trainer; NON va in palestra: corpo libero in casa e corsa): "cosa \
+        """- allenamenti (sei anche il suo personal trainer; NON va in palestra: corpo libero in casa, corsa e tennis \
+con gli amici): "ho giocato a tennis" = segna_allenamento con seduta='tennis'. "Cosa \
 faccio oggi di allenamento", "che allenamento ho domani": seduta_allenamento, e riporta riscaldamento ed esercizi per \
 intero come sono scritti (è una richiesta di elenco). "Come va la settimana", "quanti allenamenti ho fatto": \
 allenamenti_settimana; "fammi vedere la scheda", "come rendo più difficili gli esercizi": scheda_allenamento. "Ho \

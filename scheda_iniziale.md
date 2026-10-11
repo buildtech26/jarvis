@@ -29,6 +29,8 @@ restano di riserva, per quando il sito non risponde o se scrivi "darebee: no".
 - darebee tipo: strength
 - darebee difficoltà: easy, normal
 - programma corsa: 8weeks-to-5k
+- tennis: domenica 10:00
+- durata tennis: 60
 
 Cosa vogliono dire: "mattina" e "sera" sono le fasce in cui Jarvis cerca i buchi (il corpo libero prima di sera, la
 corsa prima di mattina; lascia vuota una fascia per non usarla). "margine" sono i minuti liberi che lascia prima e dopo
@@ -36,6 +38,9 @@ ogni impegno, per spostarti e farti la doccia. "pianifica" è quando mette in ca
 cambiano dopo quel numero di sedute fatte (quelle che segni con ✅ su Telegram). "darebee tipo" e "darebee difficoltà"
 sono i filtri del sito (tipi: strength, cardio, hiit, metcon, combat...; difficoltà: light, easy, normal, hard,
 advanced), separati da virgole. "programma corsa" è il nome nell'indirizzo del programma (darebee.com/programs/....html).
+"tennis" è il giorno e l'ora in cui Jarvis mette ogni settimana la partita, in più rispetto alle "sedute a settimana"
+(lascialo vuoto per toglierlo): quando giocate in un altro momento, sposta l'evento nel calendario. Il tennis non fa
+salire la fase.
 
 ## Come progredire
 
@@ -123,3 +128,8 @@ e stretching di polpacci e quadricipiti.
 ### Fase 3
 
 - 25 min di corsa continua lenta; se non ce la fai, 1 min di camminata e riparti
+
+## Tennis
+
+Riscaldamento: 5 min di corsetta leggera e mobilità di spalle, polsi e anche, poi qualche minuto di palleggi da metà
+campo prima della partita. Alla fine: 5 min di stretching di spalle, avambracci, polpacci e quadricipiti, e bevi.

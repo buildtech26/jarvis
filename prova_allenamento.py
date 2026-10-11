@@ -135,8 +135,13 @@ def main() -> int:
     messaggi = controlla()
     atteso(len(messaggi) == 1 and "in calendario" in messaggi[0][0], "messaggio della settimana", messaggi)
     atteso(orari() == ["lun 19:30 Corpo libero A", "mar 19:00 Corsa", "gio 19:00 Corpo libero B", "ven 07:00 Corsa",
-                       "sab 19:00 Corpo libero A"], "giorni e orari", orari())
-    atteso("Riposo: mer, dom" in messaggi[0][0], "giorni di riposo", messaggi[0][0])
+                       "sab 19:00 Corpo libero A", "dom 10:00 Tennis"], "giorni e orari, tennis in più", orari())
+    atteso("Riposo: mer." in messaggi[0][0] and "dom 18/10 alle 10:00 Tennis" in messaggi[0][0], "giorni di riposo",
+           messaggi[0][0])
+    tennis = cal.allenamenti()[5]
+    atteso(tennis["titolo"] == "🎾 Allenamento: Tennis" and tennis["fine"].startswith("2026-10-18T11:00")
+           and re.match(r"1\. Riscaldamento: .*palleggi.*\n2\. La partita: 60 min\.\n3\. Alla fine: ", tennis["descrizione"]),
+           "evento del tennis", tennis)
     desc = cal.allenamenti()[0]["descrizione"]
     atteso("Riscaldamento" in desc and "livello I (fase 1)" in desc and "Esercizi: 3 serie" in desc
            and "darebee.com/workouts/" in desc,
@@ -153,12 +158,12 @@ def main() -> int:
 
     # 4. un secondo giro non duplica niente
     adesso[0] = _t("2026-10-11 18:10")
-    atteso(controlla() == [] and cal.creati == 5, "nessun doppione", cal.creati)
+    atteso(controlla() == [] and cal.creati == 6, "nessun doppione", cal.creati)
 
-    # 5. rifai: toglie le cinque e le rimette uguali, con le lettere di prima
+    # 5. rifai: toglie le sei e le rimette uguali, con le lettere di prima
     r = allenamento.pianifica_allenamenti("prossima", rifai=True)
-    atteso(len(cal.allenamenti()) == 5 and orari()[0] == "lun 19:30 Corpo libero A" and orari()[4].endswith("Corpo libero A"),
-           "rifai", f"{r} {orari()}")
+    atteso(len(cal.allenamenti()) == 6 and orari()[0] == "lun 19:30 Corpo libero A" and orari()[4].endswith("Corpo libero A")
+           and orari()[5] == "dom 10:00 Tennis", "rifai", f"{r} {orari()}")
 
     # 6. lunedì alle 21:01 (fine 20:15 + 30 min) chiede com'è andata, con i pulsanti
     adesso[0] = _t("2026-10-12 21:01")
@@ -257,7 +262,31 @@ def main() -> int:
     atteso(darebee._pagina("workouts/x.html") == ("Rest up to 2 minutes & breathe.", "images/workouts/x-workout.jpg", False),
            "lettura della pagina", darebee._pagina("workouts/x.html"))
 
-    print(f"11 gruppi di casi, errori: {errori}")
+    # 12. tennis: giocato mercoledì invece di domenica, si trova lo stesso; non fa salire la fase; saltato senza
+    # recupero; la settimana dopo c'è di nuovo
+    darebee.leggi = _letto_finto
+    adesso[0] = _t("2026-10-14 20:00")
+    fatte = allenamento._fatte(allenamento._carica())
+    r = allenamento.segna_allenamento("fatto", "oggi", "tennis")
+    atteso(r.startswith("✅ Segnato: tennis") and allenamento._fatte(allenamento._carica()) == fatte,
+           "tennis spostato segnato, fase ferma", r)
+    atteso("non c'era nessun allenamento tennis" in allenamento.segna_allenamento("fatto", "oggi", "tennis"),
+           "il tennis della settimana è già segnato")
+    adesso[0] = _t("2026-10-18 18:05")
+    messaggi = controlla()
+    atteso(any("dom 25/10 alle 10:00 Tennis" in m[0] for m in messaggi), "tennis la settimana dopo", messaggi)
+    adesso[0] = _t("2026-10-25 11:31")
+    messaggi = controlla()
+    domanda = next((m for m in messaggi if "Tennis" in m[0]), None)
+    atteso(domanda is not None, "domanda dopo il tennis", messaggi)
+    if domanda:
+        testo, pulsanti = allenamento.pulsante(domanda[1][0][1][1])
+        atteso("tennis saltato" in testo and not pulsanti, "tennis saltato senza recupero", testo)
+    imp = dict(allenamento._impostazioni(), tennis="")
+    atteso(allenamento._tennis(imp) is None and allenamento._tennis(dict(imp, tennis="sabato 9.30")) == (5, datetime.time(9, 30)),
+           "impostazione del tennis")
+
+    print(f"12 gruppi di casi, errori: {errori}")
     return 1 if errori else 0
 
 

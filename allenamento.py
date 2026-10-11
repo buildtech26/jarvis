@@ -28,8 +28,10 @@ FILE = Path(__file__).with_name("allenamento.json")
 MODELLO = Path(__file__).with_name("scheda_iniziale.md")  # copiata in Obsidian se la scheda non c'è
 _lock = threading.RLock()
 
-TIPI = ["Corpo libero A", "Corpo libero B", "Corsa"]
-_EMOJI = {"Corpo libero": "🤸", "Corsa": "🏃"}
+TIPI = ["Corpo libero A", "Corpo libero B", "Corsa", "Tennis"]
+_EMOJI = {"Corpo libero": "🤸", "Corsa": "🏃", "Tennis": "🎾"}
+# il tennis si aggiunge alle "sedute a settimana", in giorno e ora fissi ("tennis" nella scheda); non sposta la fase
+TENNIS = "Tennis"
 _GIORNI = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
 _GIORNI_INTERI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 # i giorni scelti per primi: con 5 sedute il riposo cade di giovedì e di domenica
@@ -48,7 +50,7 @@ _PREDEFINITE = {"inizio": "", "sedute a settimana": "5", "mattina": "07:00-09:00
                 "margine": "30", "durata corsa": "45", "durata corpo libero": "45",
                 "pianifica": "domenica 18:00", "fase 2 dopo": "15", "fase 3 dopo": "35",
                 "darebee": "sì", "darebee tipo": "strength", "darebee difficoltà": "easy, normal",
-                "programma corsa": "8weeks-to-5k"}
+                "programma corsa": "8weeks-to-5k", "tennis": "", "durata tennis": "60"}
 # le zone di Darebee per seduta: se ne estrae una e poi l'allenamento, così il corpo intero non prende tutto
 _ZONE = {"Corpo libero A": ["lower-body", "full-body"], "Corpo libero B": ["upper-body", "abs", "full-body"]}
 _VALIDE = ("fatto", "in programma", "chiesto")  # le sedute che contano come fatte o da fare
@@ -117,6 +119,14 @@ def _quando_pianificare(imp: dict) -> tuple[int, datetime.time]:
     return giorno, datetime.time(int(m.group(1)), int(m.group(2))) if m else datetime.time(18, 0)
 
 
+def _tennis(imp: dict) -> tuple[int, datetime.time] | None:
+    """Giorno della settimana e ora del tennis ('domenica 10:00'); vuoto o senza ora = niente tennis."""
+    testo = imp["tennis"].lower()
+    giorno = next((i for i, g in enumerate(_GIORNI_INTERI) if g.rstrip("ì") in testo), None)
+    m = re.search(r"(\d{1,2})[:.](\d{2})", testo)
+    return (giorno, datetime.time(int(m.group(1)), int(m.group(2)))) if giorno is not None and m else None
+
+
 def _base(tipo: str) -> str:
     return _ALTERNATA if tipo.startswith(_ALTERNATA) else tipo
 
@@ -180,6 +190,10 @@ def _corsa_n(stato: dict, s: dict) -> int:
 def _contenuto_seduta(s: dict, stato: dict, imp: dict, fase: int) -> str:
     """Cosa c'è da fare in una seduta: l'allenamento Darebee scelto per lei o il giorno di corsa del programma (che
     dipende dalle corse fatte prima, quindi si ricalcola ogni volta), altrimenti la scheda."""
+    if s["tipo"] == TENNIS:
+        prima, dopo = _prima_dopo(_intro(_sezione(_scheda(), TENNIS, 2)))
+        passi = [p for p in (prima, f"La partita: {imp['durata tennis']} min.", dopo) if p]
+        return "\n".join(f"{i}. {p}" for i, p in enumerate(passi, 1))
     if not _darebee(imp) or (_base(s["tipo"]) == _ALTERNATA and not s.get("darebee")):
         return _contenuto(s["tipo"], fase)
     prima, dopo = _prima_dopo(_intro(_sezione(_scheda(), s["tipo"], 2)))
@@ -233,7 +247,8 @@ def _quando(s: dict) -> str:
 
 
 def _fatte(stato: dict) -> int:
-    return sum(s["stato"] == "fatto" for s in stato["sedute"])
+    """Le sedute fatte che fanno salire la fase: il tennis no."""
+    return sum(s["stato"] == "fatto" and s["tipo"] != TENNIS for s in stato["sedute"])
 
 
 def _fase(fatte: int, imp: dict) -> int:
@@ -327,8 +342,11 @@ def _pianifica(lunedi: datetime.date, dopo: datetime.datetime) -> str:
         stato, imp = _carica(), _impostazioni()
         inizio = _inizio(imp)
         gia = _della_settimana(stato, lunedi)
-        presi = {_dt(s["inizio"]).date() for s in gia}
-        quante = _numero(imp, "sedute a settimana") - len(gia)
+        normali = [s for s in gia if s["tipo"] != TENNIS]  # il tennis è in più rispetto alle "sedute a settimana"
+        tennis = _tennis(imp)
+        giorno_tennis = lunedi + datetime.timedelta(days=tennis[0]) if tennis else None
+        presi = {_dt(s["inizio"]).date() for s in gia} | {giorno_tennis}
+        quante = _numero(imp, "sedute a settimana") - len(normali)
         candidati = [lunedi + datetime.timedelta(days=i) for i in _PREFERENZA]
         candidati = [g for g in candidati if g not in presi and g >= dopo.date() and (not inizio or g >= inizio)]
         create = []
@@ -337,15 +355,20 @@ def _pianifica(lunedi: datetime.date, dopo: datetime.datetime) -> str:
                 occupati = dict(zip(candidati, esecutore.map(_occupati, candidati)))
             margine = datetime.timedelta(minutes=_numero(imp, "margine"))
             tutte = [f for f in (_finestra(imp, "mattina"), _finestra(imp, "sera")) if f]
-            lunga = max(_durata(imp, t) for t in TIPI)
+            lunga = max(_durata(imp, t) for t in TIPI if t != TENNIS)
             # i giorni in ordine di preferenza, poi le sedute assegnate in ordine di data
             scelti = sorted([g for g in candidati if _slot(g, lunga, tutte, occupati[g], margine, dopo)][:quante])
-            tipi, lettera = _sequenza(len(scelti), stato.get("lettera", "A"), salta=len(gia))
+            tipi, lettera = _sequenza(len(scelti), stato.get("lettera", "A"), salta=len(normali))
             for giorno, tipo in zip(scelti, tipi):
                 ora = _slot(giorno, _durata(imp, tipo), _fasce(imp, tipo), occupati[giorno], margine, dopo)
                 if ora:
                     create.append(_crea(stato, imp, tipo, ora))
             stato["lettera"] = lettera
+        nuove = len(create)
+        # il tennis all'ora fissa, senza cercare buchi: se la partita è un altro giorno l'utente sposta l'evento
+        if (tennis and _ora(giorno_tennis, tennis[1]) >= dopo and (not inizio or giorno_tennis >= inizio)
+                and not any(s["tipo"] == TENNIS for s in gia)):
+            create.append(_crea(stato, imp, TENNIS, _ora(giorno_tennis, tennis[1])))
         if str(lunedi) not in stato["settimane"]:
             stato["settimane"].append(str(lunedi))
         _salva(stato)
@@ -362,8 +385,8 @@ def _pianifica(lunedi: datetime.date, dopo: datetime.datetime) -> str:
         riposo = [_GIORNI[i] for i in range(7) if i not in giorni and lunedi + datetime.timedelta(days=i) >= dopo.date()]
         if riposo:
             testo += f" Riposo: {', '.join(riposo)}."
-        if len(create) < quante:
-            testo += f" Ne ho trovate {len(create)} su {quante}: negli altri giorni non c'era un buco libero."
+        if nuove < quante:
+            testo += f" Ne ho trovate {nuove} su {quante}: negli altri giorni non c'era un buco libero."
         testo += " Se un orario non va, spostalo dal calendario: me ne accorgo da solo."
     if prima:
         testo += f" La settimana scorsa: {sum(s['stato'] == 'fatto' for s in prima)} fatte su {len(prima)}."
@@ -479,6 +502,9 @@ def _esito(s: dict, azione: str, stato: dict, imp: dict, quando: datetime.dateti
         s["stato"] = "fatto"
         _storico(s)
         fatte = _fatte(stato)
+        if s["tipo"] == TENNIS:
+            _salva(stato)
+            return "✅ Segnato: tennis fatto. Bella partita?", []
         testo = f"✅ Segnato: {s['tipo']} fatta. Sedute fatte in tutto: {fatte}."
         if _fase(fatte, imp) > prima:
             testo += (f" Passi alla fase {_fase(fatte, imp)}: da adesso esercizi e serie cambiano; negli eventi già in "
@@ -489,8 +515,11 @@ def _esito(s: dict, azione: str, stato: dict, imp: dict, quando: datetime.dateti
         s["stato"] = "saltato"
         _storico(s)
         _salva(stato)
+        if s["tipo"] == TENNIS:  # dipende dagli amici e dal campo: niente recupero proposto
+            return ("❌ Segnato: tennis saltato. Se giocate un altro giorno, spostalo in calendario o dimmelo: lo "
+                    "rimetto come fatto."), []
         testo = f"❌ Segnato: {s['tipo']} saltata."
-        risposte = [x for x in stato["sedute"] if x["stato"] in ("fatto", "saltato")]
+        risposte = [x for x in stato["sedute"] if x["stato"] in ("fatto", "saltato") and x["tipo"] != TENNIS]
         if len(risposte) >= 2 and all(x["stato"] == "saltato" for x in risposte[-2:]):
             testo += " Sono due di fila: anche 20 minuti di corpo libero contano più di niente."
         ora = _recupero(s, stato, imp)
@@ -612,6 +641,8 @@ def scheda_allenamento(seduta: str = "") -> str:
         fonte = (" Le sedute vengono da darebee.com: per il corpo libero un allenamento senza attrezzi diverso ogni "
                  f"volta (A gambe o corpo intero, B parte alta, addominali o corpo intero) al livello {'I' * fase} del "
                  f"poster; la corsa segue il programma {imp['programma corsa']}.")
+    if _tennis(imp):
+        fonte += f" In più il tennis, {imp['tennis']} ({imp['durata tennis']} min): se la partita cambia, si sposta l'evento."
     return (f"Fase {fase}, {_fatte(stato)} sedute fatte. {_numero(imp, 'sedute a settimana')} sedute a settimana: "
             f"corpo libero in casa (A e B alternate) e corsa a giorni alterni, niente palestra.{fonte} Fasce: mattina "
             f"{imp['mattina'] or 'non usata'}, sera {imp['sera'] or 'non usata'}.\nCome progredire:\n"
@@ -650,21 +681,32 @@ def pianifica_allenamenti(settimana: str = "prossima", rifai: bool = False) -> s
         return _pianifica(lunedi, adesso + datetime.timedelta(hours=1))
 
 
-def segna_allenamento(esito: str, giorno: str = "oggi") -> str:
-    """Segna com'è andato l'allenamento in calendario di un giorno ("ho fatto la corsa", "oggi l'ho saltato").
+def segna_allenamento(esito: str, giorno: str = "oggi", seduta: str = "") -> str:
+    """Segna com'è andato l'allenamento in calendario di un giorno ("ho fatto la corsa", "oggi l'ho saltato",
+    "ho giocato a tennis").
 
     Args:
         esito: 'fatto', 'saltato', oppure 'recupera' (solo se l'utente chiede di recuperarlo: lo rimette nel primo
             buco libero dei prossimi 3 giorni)
         giorno: 'oggi', 'ieri' oppure 'AAAA-MM-GG'
+        seduta: 'tennis', 'corsa' o 'corpo libero' se l'utente lo nomina; vuoto = l'ultima del giorno. Il tennis
+            giocato in un giorno diverso da quello in calendario si trova lo stesso, nella stessa settimana
     """
     data = _giorno(giorno)
     with _lock:
         stato, imp = _carica(), _impostazioni()
         sedute = [s for s in stato["sedute"] if s["stato"] != "cancellato" and _dt(s["inizio"]).date() == data]
+        if seduta.strip():
+            sedute = [s for s in sedute if s["tipo"].lower().startswith(seduta.strip().lower())]
+            if not sedute and seduta.strip().lower().startswith("tennis"):
+                # la partita si è spostata e l'evento no: vale il tennis ancora aperto di quella settimana
+                sedute = [s for s in stato["sedute"] if s["tipo"] == TENNIS and s["stato"] in ("in programma", "chiesto")
+                          and _lunedi(_dt(s["inizio"]).date()) == _lunedi(data)]
         if not sedute:
-            return f"Il {data:%d/%m} non c'era nessun allenamento in calendario."
+            return f"Il {data:%d/%m} non c'era nessun allenamento {seduta.strip() or ''} in calendario.".replace("  ", " ")
         s = sedute[-1]
+        if esito == "recupera" and s["tipo"] == TENNIS:
+            return "Il tennis non lo recupero da solo: dimmi quando giocate, oppure sposta l'evento in calendario."
         if esito != "recupera":
             testo, pulsanti = _esito(s, "fatto" if esito == "fatto" else "saltato", stato, imp)
             if pulsanti:
