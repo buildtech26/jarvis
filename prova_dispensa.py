@@ -189,6 +189,80 @@ def main() -> int:
     errori_prima = dispensa._errori["volte"]
     atteso(errori_prima == 0, "nessun errore contato", errori_prima)
 
+    # --- foto: codici a barre (immagine generata qui), Open Food Facts e Gemini finti ---
+    import io
+    import zxingcpp
+    from PIL import Image
+
+    def immagine(*codici_ean) -> bytes:
+        pezzi = [Image.fromarray(__import__("numpy").array(zxingcpp.create_barcode(c, zxingcpp.BarcodeFormat.EAN13)
+                                                          .to_image(scale=4))).convert("L") for c in codici_ean]
+        tela = Image.new("L", (max(p.width for p in pezzi) + 80, sum(p.height + 80 for p in pezzi)), 255)
+        y = 40
+        for p in pezzi:
+            tela.paste(p, (40, y))
+            y += p.height + 80
+        buf = io.BytesIO()
+        tela.save(buf, "JPEG")
+        return buf.getvalue()
+
+    atteso(dispensa.codici(immagine("8076800195057", "8000500310427")) == ["8076800195057", "8000500310427"],
+           "due codici nella stessa foto", dispensa.codici(immagine("8076800195057", "8000500310427")))
+    qr = io.BytesIO()
+    Image.fromarray(__import__("numpy").array(zxingcpp.create_barcode("https://esempio.it", zxingcpp.BarcodeFormat.QRCode)
+                                                .to_image(scale=6))).save(qr, "PNG")
+    atteso(dispensa.codici(qr.getvalue()) == [] and dispensa.codici(b"non sono una foto") == [],
+           "QR e file rotti non sono codici di prodotti")
+
+    conosciuti = {"8076800195057": "Spaghetti n.5 (Barilla) — 500 g — categorie: spaghetti"}
+    dispensa._open_food_facts = lambda c: conosciuti.get(c)
+    estratti = []
+
+    def gemini_prodotti(testo, schema=None):
+        estratti.append(testo)
+        if "Spaghetti n.5" in testo:
+            return [{"nome": "Pasta", "quantita": 500, "unita": "g", "dove": "dispensa"}]
+        if "PETTO POLLO" in testo:
+            return [{"nome": "Petto di pollo", "quantita": 450, "unita": "g", "dove": "frigo"},
+                    {"nome": "Uova", "quantita": 6, "unita": "pz", "dove": "frigo"},
+                    {"nome": "Spinaci surgelati", "quantita": 0, "unita": "g", "dove": "freezer"}]
+        return []
+
+    dispensa._gemini = gemini_prodotti
+    testo, pulsanti = dispensa.da_codici(["8076800195057", "1234567890128"])
+    atteso("Dal codice a barre: 1 prodotto" in testo and "Non trovati su Open Food Facts: 1234567890128" in testo
+           and pulsanti[0][0][0] == "✅ Pasta · 500 g · dispensa" and "Già in dispensa: Pasta" in estratti[-1],
+           "codici a barre", (testo, pulsanti, estratti[-1][-300:]))
+    testo, pulsanti = dispensa.da_codici(["1234567890128"])
+    atteso(pulsanti == [] and "non so che prodotto è" in testo, "codice sconosciuto", testo)
+
+    # --- scontrino, pulsanti ---
+    atteso(dispensa.da_scontrino("DETERSIVO PIATTI 1,99\nTOTALE 1,99") is None, "scontrino senza cibo")
+    testo, pulsanti = dispensa.da_scontrino("PETTO POLLO AIA GR450 4,50\nUOVA FRESCHE X6 2,10\nSPINACI 1,20")
+    atteso("ho letto 2 prodotti" in testo and [r[0][0] for r in pulsanti[:-1]] ==
+           ["✅ Petto di pollo · 450 g · frigo", "✅ Uova · 6 pz · frigo"] and pulsanti[-1][0][0] == "➕ Aggiungi",
+           "proposta dallo scontrino (quantità 0 scartata)", (testo, pulsanti))
+    id = pulsanti[-1][0][1].split(":")[2]
+    pasta_prima = finto.voce("Pasta")["quantita"]
+    t, p = dispensa.pulsante(f"dis:t:{id}:0")
+    atteso(t is None and p[0][0][0].startswith("⬜ Petto") and p[1][0][0].startswith("✅ Uova"), "pollo tolto", p)
+    t, p = dispensa.pulsante(f"dis:t:{id}:0")
+    atteso(p[0][0][0].startswith("✅ Petto"), "pollo rimesso", p)
+    dispensa.pulsante(f"dis:t:{id}:0")
+    t, p = dispensa.pulsante(f"dis:ok:{id}")
+    atteso(t == "➕ Dispensa aggiornata. Uova: nuovo, 6 pz in frigo" and p == [], "aggiunte solo le uova", t)
+    atteso(finto.voce("Pasta")["quantita"] == pasta_prima and "Petto di pollo" not in dispensa.dispensa(),
+           "il pollo non c'è", dispensa.dispensa())
+    t, p = dispensa.pulsante(f"dis:ok:{id}")
+    atteso("non c'è più" in t, "lista già chiusa", t)
+    _, pulsanti = dispensa.da_scontrino("PETTO POLLO AIA GR450 4,50")
+    id = pulsanti[-1][0][1].split(":")[2]
+    t, _ = dispensa.pulsante(f"dis:no:{id}")
+    atteso(t == "❌ Niente aggiunto alla dispensa." and "Petto" not in dispensa.dispensa(), "annullato", t)
+    for _ in range(dispensa.IN_ATTESA + 3):
+        dispensa.da_scontrino("PETTO POLLO AIA GR450 4,50")
+    atteso(len(dispensa._carica()["attesa"]) == dispensa.IN_ATTESA, "liste in attesa limitate")
+
     print(f"prova_dispensa: errori {errori}")
     return 1 if errori else 0
 

@@ -71,15 +71,20 @@ def _analizza(dati: bytes, mime: str, didascalia: str) -> dict:
     raise RuntimeError(f"Gemini non riesce a leggere la foto: {errore[:120]}")
 
 
-def salva_foto(dati: bytes, estensione: str, didascalia: str = "") -> tuple[str, str]:
-    """Analizza la foto, la salva in raw/ con la sua nota e restituisce (risposta per l'utente, riassunto per la
-    conversazione). Se Gemini non risponde la foto si salva comunque, con una nota da completare."""
+def analizza(dati: bytes, estensione: str, didascalia: str = "") -> dict:
+    """Titolo, tipo, descrizione, trascrizione e risposta; se Gemini non risponde, una foto da completare."""
     mime = {".png": "image/png", ".webp": "image/webp"}.get(estensione.lower(), "image/jpeg")
     try:
-        a = _analizza(dati, mime, didascalia)
+        return _analizza(dati, mime, didascalia)
     except Exception as e:
-        a = {"titolo": "Foto", "tipo": "foto", "descrizione": "", "trascrizione": "",
-             "risposta": f"Ho salvato la foto, ma non sono riuscito a leggerla ({e})."}
+        return {"titolo": "Foto", "tipo": "foto", "descrizione": "", "trascrizione": "",
+                "risposta": f"Ho salvato la foto, ma non sono riuscito a leggerla ({e})."}
+
+
+def salva_foto(dati: bytes, estensione: str, didascalia: str = "", a: dict | None = None) -> tuple[str, str]:
+    """Salva la foto in raw/ con la sua nota (analizzata qui se a manca) e restituisce (risposta per l'utente,
+    riassunto per la conversazione). Se Gemini non risponde la foto si salva comunque, con una nota da completare."""
+    a = a or analizza(dati, estensione, didascalia)
     nome = _nome_file(a.get("titolo", "Foto"))
     CARTELLA.mkdir(parents=True, exist_ok=True)
     immagine = CARTELLA / f"{nome}{estensione.lower()}"

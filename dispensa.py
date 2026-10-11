@@ -11,12 +11,16 @@ sotto un quarto dell'ultimo acquisto. Il database l'ha creato l'utente (2026-10-
 serve la connessione (••• → Connessioni → Jarvis).
 """
 import datetime
+import io
 import json
 import os
 import re
 import time
+import uuid
 from collections import Counter
 from pathlib import Path
+
+import requests
 
 import cronometer
 import notion
@@ -215,27 +219,12 @@ def aggiorna_dispensa(prodotti: str, azione: str = "aggiungi") -> str:
     elenco = _leggi_prodotti(prodotti)
     if not elenco:
         return "Dimmi quali prodotti."
+    if azione == "aggiungi":
+        return _aggiungi(elenco)
     voci, fatti, problemi = _voci(), [], []
     for prodotto in elenco:
         voce = _trova(prodotto["nome"], voci)
         q, u = prodotto["quantita"], prodotto["unita"]
-        if azione == "aggiungi":
-            if voce is None:
-                campi = {"nome": prodotto["nome"], "quantita": q or 1, "unita": u or "pz",
-                         "dove": prodotto["dove"] or "Dispensa"}
-                voce = _crea(**campi, acquisto=q or 1)
-                voci.append(voce)
-                fatti.append(f"{voce['nome']}: nuovo, {_quanto(voce)} in {voce['dove'].lower()}")
-                continue
-            if q is None:  # "ho ricomprato il latte": torna alla quantità dell'ultima spesa
-                q, u = voce["acquisto"] or 1, voce["unita"]
-            prima = max(voce["quantita"] or 0, 0) if u == voce["unita"] else 0
-            campi = {"quantita": prima + q, "unita": u, "acquisto": prima + q}
-            if prodotto["dove"]:
-                campi["dove"] = prodotto["dove"]
-            _cambia(voce, **campi)
-            fatti.append(f"{voce['nome']}: ora {_quanto(voce)}")
-            continue
         if voce is None:
             problemi.append(prodotto["nome"])
             continue
@@ -260,6 +249,29 @@ def aggiorna_dispensa(prodotti: str, azione: str = "aggiungi") -> str:
     if problemi:
         testo += f" Non in dispensa o non cambiati: {', '.join(problemi)}."
     return testo
+
+
+def _aggiungi(elenco: list[dict]) -> str:
+    """Prodotti comprati (nome, quantità, unità, posto; quantità e posto possono mancare) dentro la dispensa."""
+    voci, fatti = _voci(), []
+    for prodotto in elenco:
+        voce = _trova(prodotto["nome"], voci)
+        q, u = prodotto.get("quantita"), prodotto.get("unita")
+        if voce is None:
+            voce = _crea(nome=prodotto["nome"], quantita=q or 1, unita=u or "pz", dove=prodotto.get("dove") or "Dispensa",
+                         acquisto=q or 1)
+            voci.append(voce)
+            fatti.append(f"{voce['nome']}: nuovo, {_quanto(voce)} in {voce['dove'].lower()}")
+            continue
+        if q is None:  # "ho ricomprato il latte": torna alla quantità dell'ultima spesa
+            q, u = voce["acquisto"] or 1, voce["unita"]
+        prima = max(voce["quantita"] or 0, 0) if u == voce["unita"] else 0
+        campi = {"quantita": prima + q, "unita": u, "acquisto": prima + q}
+        if prodotto.get("dove"):
+            campi["dove"] = prodotto["dove"]
+        _cambia(voce, **campi)
+        fatti.append(f"{voce['nome']}: ora {_quanto(voce)}")
+    return "Dispensa aggiornata. " + "; ".join(fatti)
 
 
 def in_casa() -> str:
@@ -346,14 +358,16 @@ def _abbina(cibi: list[dict], voci: list[dict]) -> list[tuple[dict, dict | None,
     return risultato
 
 
-def _gemini(testo: str) -> list[dict]:
+_ABBINAMENTI = {"type": "array", "items": {"type": "object", "properties": {
+    "cibo": {"type": "integer"}, "voce": {"type": "integer"}, "togli": {"type": "number"}},
+    "required": ["cibo", "voce", "togli"]}}
+
+
+def _gemini(testo: str, schema: dict = _ABBINAMENTI) -> list[dict]:
     from google import genai
     from google.genai import types
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"].strip())
-    schema = {"type": "array", "items": {"type": "object", "properties": {
-        "cibo": {"type": "integer"}, "voce": {"type": "integer"}, "togli": {"type": "number"}},
-        "required": ["cibo", "voce", "togli"]}}
     config = types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema,
                                          thinking_config=types.ThinkingConfig(thinking_level="low"),
                                          http_options=types.HttpOptions(timeout=60000))
@@ -373,7 +387,7 @@ def _gemini(testo: str) -> list[dict]:
             quota.registra(modello, "dispensa", "429" if tipo else "altro")
             if tipo != "minuto":
                 scartati.add(modello)
-    raise RuntimeError(f"Gemini non riesce ad abbinare i cibi alla dispensa: {errore[:120]}")
+    raise RuntimeError(f"Gemini non risponde per la dispensa: {errore[:120]}")
 
 
 def scala(giorno: datetime.date) -> str:
@@ -454,6 +468,155 @@ def controlla() -> list[str]:
             messaggi.append(testo if turno == "sera" else testo.replace("ho tolto:", "ho tolto anche (pasti di ieri "
                                                                                      "segnati tardi):"))
     return messaggi
+
+
+# --- foto su Telegram: scontrino e codici a barre ---
+# Lo scontrino lo riconosce foto.py (tipo "scontrino") e ne trascrive il testo; i codici a barre si leggono qui, in
+# locale con zxing-cpp, e i prodotti si cercano su Open Food Facts (gratis, senza chiave). In tutti e due i casi
+# Gemini dà nomi generici in italiano (gli stessi della dispensa se il prodotto c'è già) e l'utente conferma con i
+# pulsanti prima che qualcosa entri in Notion: sugli scontrini le sigle sono criptiche.
+
+FORMATI = {"EAN-13", "EAN-8", "UPC-A", "UPC-E"}  # i codici dei prodotti: QR e Code 128 degli scontrini no
+OFF = "https://world.openfoodfacts.org/api/v2/product/{}.json"
+_OFF_CAMPI = "product_name_it,product_name,generic_name_it,brands,quantity,categories_tags"
+IN_ATTESA = 10  # liste da confermare tenute in dispensa.json
+ESTRAI = """Dal testo qui sotto ({fonte}) ricava i prodotti da mangiare o da bere comprati, per la dispensa di casa.
+- nome: generico, in italiano, come lo direbbe una persona ("Petto di pollo", "Spaghetti", "Latte parzialmente \
+scremato", "Passata di pomodoro"), senza marca né sigle. Se il prodotto è già in dispensa usa ESATTAMENTE quel nome.
+- quantita e unita (g, ml o pz): il totale comprato (2 confezioni da 500 g = 1000 g), dal peso scritto; se non c'è \
+stima una confezione normale. Uova, frutta e verdura a pezzi, scatolette e vasetti a pezzi.
+- dove: frigo, freezer o dispensa.
+- Salta quello che non si mangia (detersivi, igiene, sacchetti), sconti, totali, pagamento e righe illeggibili.
+
+Già in dispensa: {voci}
+
+Testo:
+{testo}"""
+_PRODOTTI = {"type": "array", "items": {"type": "object", "properties": {
+    "nome": {"type": "string"}, "quantita": {"type": "number"},
+    "unita": {"type": "string", "enum": ["g", "ml", "pz"]},
+    "dove": {"type": "string", "enum": ["frigo", "freezer", "dispensa"]}},
+    "required": ["nome", "quantita", "unita", "dove"]}}
+
+
+def codici(dati: bytes) -> list[str]:
+    """I codici a barre dei prodotti nella foto (anche più di uno), senza doppioni."""
+    import zxingcpp
+    from PIL import Image, ImageOps
+
+    try:
+        immagine = ImageOps.exif_transpose(Image.open(io.BytesIO(dati)))
+    except Exception:
+        return []
+    return list(dict.fromkeys(c.text for c in zxingcpp.read_barcodes(immagine) if str(c.format) in FORMATI))
+
+
+def _open_food_facts(codice: str) -> str | None:
+    """Il prodotto in una riga ('Spaghetti n.5 (Barilla) — 500 g — ...'); None se Open Food Facts non lo conosce."""
+    r = requests.get(OFF.format(codice), params={"fields": _OFF_CAMPI}, timeout=20,
+                     headers={"User-Agent": "Jarvis/1.0 (assistente personale)"})
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    dati = r.json()
+    p = dati.get("product") or {}
+    nome = p.get("product_name_it") or p.get("product_name") or p.get("generic_name_it")
+    if dati.get("status") != 1 or not nome:
+        return None
+    categorie = [c.split(":", 1)[-1].replace("-", " ") for c in (p.get("categories_tags") or [])[-4:]]
+    return " — ".join(x for x in [f"{nome} ({p['brands']})" if p.get("brands") else nome, p.get("quantity"),
+                                  p.get("generic_name_it"), "categorie: " + ", ".join(categorie) if categorie else ""] if x)
+
+
+def _estrai(testo: str, fonte: str) -> list[dict]:
+    try:
+        nomi = ", ".join(v["nome"] for v in _voci()) or "niente"
+    except Exception:
+        nomi = "(non letta)"
+    prodotti = _gemini(ESTRAI.format(fonte=fonte, voci=nomi, testo=testo), _PRODOTTI)
+    return [{"nome": p["nome"].strip()[:60], "quantita": round(float(p["quantita"]), 1), "unita": p["unita"],
+             "dove": p["dove"].capitalize()} for p in prodotti if p.get("nome", "").strip() and p.get("quantita")]
+
+
+def _etichetta(p: dict) -> str:
+    return f"{p['nome']} · {_quanto(p)} · {p['dove'].lower()}"
+
+
+def _pulsanti(id: str, attesa: dict) -> list:
+    righe = [[(("✅ " if i in attesa["scelti"] else "⬜ ") + _etichetta(p), f"dis:t:{id}:{i}")]
+             for i, p in enumerate(attesa["prodotti"])]
+    return righe + [[("➕ Aggiungi", f"dis:ok:{id}"), ("❌ Annulla", f"dis:no:{id}")]]
+
+
+def _proponi(prodotti: list[dict], intestazione: str) -> tuple[str, list]:
+    """Il messaggio con un pulsante per prodotto (tutti scelti all'inizio) e la lista messa in attesa."""
+    id = uuid.uuid4().hex[:8]
+    stato = _carica()
+    attesa = stato.setdefault("attesa", {})
+    attesa[id] = {"prodotti": prodotti, "scelti": list(range(len(prodotti))), "quando": _adesso().isoformat()}
+    for vecchio in sorted(attesa, key=lambda k: attesa[k]["quando"])[:-IN_ATTESA]:
+        del attesa[vecchio]
+    _salva(stato)
+    return (f"{intestazione}\nTocca quelli da lasciare fuori, poi ➕ Aggiungi. Le quantità le puoi correggere dopo, "
+            "a parole o su Notion."), _pulsanti(id, attesa[id])
+
+
+def da_scontrino(trascrizione: str) -> tuple[str, list] | None:
+    """I prodotti di uno scontrino da confermare; None se non c'è niente da mangiare (non è una spesa)."""
+    prodotti = _estrai(trascrizione, "lo scontrino di una spesa, con le sigle del supermercato")
+    if not prodotti:
+        return None
+    return _proponi(prodotti, f"🧾 Dallo scontrino ho letto {len(prodotti)} prodotti da mangiare.")
+
+
+def da_codici(trovati: list[str]) -> tuple[str, list]:
+    """I prodotti dei codici a barre da confermare; quelli che Open Food Facts non conosce si dicono a parte."""
+    righe, sconosciuti = [], []
+    for codice in trovati:
+        try:
+            riga = _open_food_facts(codice)
+        except Exception as e:
+            print(f"[dispensa] Open Food Facts non risponde per {codice}: {e}")
+            riga = None
+        if riga:
+            righe.append(riga)
+        else:
+            sconosciuti.append(codice)
+    fuori = (f"\nNon trovati su Open Food Facts: {', '.join(sconosciuti)}. Dimmi tu cosa sono (es. \"ho comprato "
+             "...\").") if sconosciuti else ""
+    prodotti = _estrai("\n".join(righe), "prodotti trovati con il codice a barre, uno per riga") if righe else []
+    if not prodotti:
+        return f"🔎 Codice a barre letto, ma non so che prodotto è.{fuori}", []
+    testo, pulsanti = _proponi(prodotti, f"🔎 Dal codice a barre: {len(prodotti)} prodott{'o' if len(prodotti) == 1 else 'i'}.")
+    return testo + fuori, pulsanti
+
+
+def pulsante(dati: str) -> tuple[str | None, list]:
+    """Un pulsante della lista ('dis:t:id:3' scegli/togli, 'dis:ok:id', 'dis:no:id'). (None, pulsanti) = cambia solo i
+    pulsanti; (testo, []) = la lista è chiusa e il testo si aggiunge al messaggio."""
+    parti = dati.split(":")
+    azione, id = parti[1], parti[2]
+    stato = _carica()
+    attesa = stato.get("attesa", {}).get(id)
+    if attesa is None:
+        return "Questa lista non c'è più: rimanda la foto.", []
+    if azione == "t":
+        i = int(parti[3])
+        attesa["scelti"] = sorted(set(attesa["scelti"]) ^ {i})
+        _salva(stato)
+        return None, _pulsanti(id, attesa)
+    del stato["attesa"][id]
+    _salva(stato)
+    scelti = [p for i, p in enumerate(attesa["prodotti"]) if i in attesa["scelti"]]
+    if azione == "no" or not scelti:
+        return "❌ Niente aggiunto alla dispensa.", []
+    try:
+        return "➕ " + _aggiungi(scelti), []
+    except Exception as e:
+        stato = _carica()
+        stato.setdefault("attesa", {})[id] = attesa  # si può ripremere
+        _salva(stato)
+        return f"Notion non risponde ({e}): riprova fra poco.", _pulsanti(id, attesa)
 
 
 STRUMENTI = [dispensa, aggiorna_dispensa]

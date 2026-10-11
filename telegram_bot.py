@@ -66,6 +66,9 @@ class BotTelegram:
         if cq.get("from", {}).get("id") != self.utente:
             return
         dati, msg = cq.get("data", ""), cq.get("message") or {}
+        if dati.startswith("dis:"):
+            self.pulsante_dispensa(dati, msg)
+            return
         if not dati.startswith("all:"):
             return
         print(f"[allenamento] pulsante {dati}")
@@ -74,6 +77,19 @@ class BotTelegram:
         requests.post(f"{self.api}/editMessageText", json={
             "chat_id": msg["chat"]["id"], "message_id": msg["message_id"],
             "text": f"{msg.get('text', '')}\n\n{testo}"[:4000], "reply_markup": _in_linea(pulsanti)}, timeout=30)
+
+    def pulsante_dispensa(self, dati, msg):
+        """La lista di uno scontrino o di un codice a barre: un prodotto scelto/tolto cambia solo i pulsanti,
+        Aggiungi e Annulla chiudono la lista e scrivono l'esito sotto."""
+        print(f"[dispensa] pulsante {dati}")
+        testo, pulsanti = dispensa.pulsante(dati)
+        base = {"chat_id": msg["chat"]["id"], "message_id": msg["message_id"], "reply_markup": _in_linea(pulsanti)}
+        if testo is None:
+            requests.post(f"{self.api}/editMessageReplyMarkup", json=base, timeout=30)
+        else:
+            requests.post(f"{self.api}/editMessageText", json={**base, "text": f"{msg.get('text', '')}\n\n{testo}"[:4000]},
+                          timeout=30)
+            self.jarvis.aggiungi_scambio("telegram", "(pulsante della lista per la dispensa)", testo)
 
     def ciclo_allenamento(self):
         """Pianificazione della settimana e domande "fatto?" dopo le sedute (allenamento.py), una volta al minuto."""
@@ -192,10 +208,46 @@ class BotTelegram:
         info = requests.get(f"{self.api}/getFile", params={"file_id": file_id}, timeout=30).json()["result"]
         dati = requests.get(f"{self.file_api}/{info['file_path']}", timeout=60).content
         didascalia = msg.get("caption", "").strip()
-        risposta, riassunto = foto.salva_foto(dati, estensione, didascalia)
-        self.invia(chat_id, risposta)
         domanda = f"📷 foto{': ' + didascalia if didascalia else ''}"
+        if self.foto_dispensa(chat_id, dati, domanda):
+            return
+        a = foto.analizza(dati, estensione, didascalia)
+        if a.get("tipo") == "scontrino" and dispensa.configurata():
+            # lo scontrino della spesa va nella dispensa, non in Obsidian; se non ci sono cibi si salva come sempre
+            try:
+                proposta = dispensa.da_scontrino(a.get("trascrizione", ""))
+            except Exception as e:
+                print(f"[dispensa] scontrino non letto: {e}")
+                proposta = None
+            if proposta:
+                testo = (a.get("risposta", "").strip() + "\n\n" if "?" in didascalia else "") + proposta[0]
+                self.manda_proposta(chat_id, domanda, testo, proposta[1])
+                return
+        risposta, riassunto = foto.salva_foto(dati, estensione, didascalia, a)
+        self.invia(chat_id, risposta)
         self.jarvis.aggiungi_scambio("telegram", domanda, risposta, contesto=f"{domanda}\n{riassunto}")
+
+    def foto_dispensa(self, chat_id, dati: bytes, domanda: str) -> bool:
+        """Se nella foto ci sono codici a barre di prodotti, la lista per la dispensa al posto della foto in Obsidian."""
+        if not dispensa.configurata():
+            return False
+        try:
+            trovati = dispensa.codici(dati)
+            if not trovati:
+                return False
+            testo, pulsanti = dispensa.da_codici(trovati)
+        except Exception as e:
+            print(f"[dispensa] codice a barre non gestito: {e}")
+            return False
+        self.manda_proposta(chat_id, domanda, testo, pulsanti)
+        return True
+
+    def manda_proposta(self, chat_id, domanda: str, testo: str, pulsanti):
+        self.invia_pulsanti(chat_id, testo, pulsanti)
+        # i prodotti stanno sui pulsanti: nella conversazione vanno scritti, per "il pollo era un chilo"
+        prodotti = [etichetta[2:] for riga in pulsanti[:-1] for etichetta, _ in riga]
+        self.jarvis.aggiungi_scambio("telegram", domanda, testo, contesto=f"{domanda}\n{testo}\nProdotti proposti "
+                                     f"(non ancora in dispensa finché l'utente non preme Aggiungi): {'; '.join(prodotti)}")
 
     def gestisci_documento(self, chat_id, msg):
         """PDF, testo e altri file: la didascalia è la domanda; senza didascalia arriva un riassunto."""
