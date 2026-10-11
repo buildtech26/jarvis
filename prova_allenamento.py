@@ -244,7 +244,20 @@ def main() -> int:
     atteso(allenamento._giorno("domani") == datetime.date(2026, 10, 17), "alle 00:30 domani = oggi")
     adesso[0] = _t("2026-10-17 06:00")
     atteso(allenamento._giorno("domani") == datetime.date(2026, 10, 18), "alle 6 domani = domani")
+    # i nomi dei giorni: lunedì 12/10 "domenica" è il 18; "prossima" e "scorsa" saltano una settimana se è oggi;
+    # per segnare un esito il giorno è quello passato
+    adesso[0] = _t("2026-10-12 00:57")
+    for testo, data in [("domenica", "2026-10-18"), ("prossima domenica", "2026-10-18"), ("lunedì", "2026-10-12"),
+                        ("prossimo lunedì", "2026-10-19"), ("sabato", "2026-10-17"), ("2026-10-20", "2026-10-20")]:
+        atteso(allenamento._giorno(testo) == datetime.date.fromisoformat(data), f"giorno {testo!r}", allenamento._giorno(testo))
+    adesso[0] = _t("2026-10-14 12:00")
+    for testo, data in [("lunedì", "2026-10-12"), ("mercoledì", "2026-10-14"), ("mercoledì scorso", "2026-10-07")]:
+        atteso(allenamento._giorno(testo, passato=True) == datetime.date.fromisoformat(data), f"passato {testo!r}",
+               allenamento._giorno(testo, passato=True))
     adesso[0] = _t("2026-10-16 09:00")
+    trovato = [m for schema, nome, _ in brain.COMANDI if nome == "seduta_allenamento"
+               and (m := re.fullmatch(schema, "che allenamento ho domenica"))]
+    atteso(trovato and next(g for g in trovato[0].groups() if g) == "domenica", "comando diretto con domenica")
 
     letti = []
 

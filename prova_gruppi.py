@@ -79,6 +79,12 @@ CASI = [
     (["organizzami gli allenamenti della prossima settimana"], "pianifica_allenamenti"),
     (["oggi ho saltato la corsa"], "segna_allenamento"),
     (["ho fatto il corpo libero"], "segna_allenamento"),
+    # il 12/10 queste restavano con il solo gruppo base e Gemini rispondeva a memoria
+    (["domenica cosa devo fare"], "seduta_allenamento"),
+    (["domenica cosa devo fare"], "eventi_calendario"),
+    (["cosa devo fare prossima domenoca"], "eventi_calendario"),
+    (["che c'è sabato?"], "eventi_calendario"),
+    (["ho giocato a tennis"], "segna_allenamento"),
     (["cosa mi cucino stasera con ceci e riso?"], "consigli_alimentazione"),
     (["cosa posso mangiare stasera?"], "consigli_alimentazione"),
     (["dammi una ricetta per la cena"], "consigli_alimentazione"),

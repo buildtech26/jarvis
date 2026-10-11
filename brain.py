@@ -87,6 +87,8 @@ def _di_servizio(e: Exception) -> bool:
 # Comandi diretti: (frase intera, nome, azione). Ogni frase qui risparmia almeno 2 richieste Gemini; le
 # espressioni descrivono la frase INTERA, così "cosa devo fare per arrivare a Roma" va comunque al modello
 _CITTA = r"(?: (?:a|ad|in) ([a-zà-ù' ]+?))?"
+_GIORNO = (r"(oggi|domani|dopodomani|(?:(?:la )?prossim[oa] )?(?:luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|"
+           r"venerd[iì]|sabato|domenica))")
 COMANDI = [
     (r"(?:quanto ho consumato|consumi|quante richieste (?:ho fatto|mi restano)(?: oggi)?)", "consumi",
      lambda m: quota.consumi()),
@@ -96,8 +98,8 @@ COMANDI = [
      r"(?: oggi| questa settimana| su notion)?", "attivita", lambda m: notion.attivita_in_breve()),
     (r"(?:(?:che )?cosa ho|che impegni ho|impegni(?: di)?|agenda(?: di)?) (oggi|domani)", "impegni",
      lambda m: calendario.impegni_in_breve(0 if m.group(1) == "oggi" else 1)),
-    (r"(?:(?:che |qual è l'|quale )?allenamento (?:ho |devo fare |c'è |di |per )?(oggi|domani)|"
-     r"(?:cosa|che) (?:faccio|devo fare|ho) (oggi|domani) di allenamento|(?:la )?scheda di (oggi|domani))",
+    (rf"(?:(?:che |qual è l'|quale )?allenamento (?:ho |devo fare |c'è |di |per )?{_GIORNO}|"
+     rf"(?:cosa|che) (?:faccio|devo fare|ho) {_GIORNO} di allenamento|(?:la )?scheda di {_GIORNO})",
      "seduta_allenamento", lambda m: allenamento.seduta_allenamento(next(g for g in m.groups() if g))),
     (r"(?:che tempo fa|che tempo farà|com'è il tempo|meteo|previsioni(?: del tempo)?)(?: oggi| domani)?" + _CITTA
      + r"(?: oggi| domani)?", "meteo", lambda m: tools.meteo((m.group(1) or "Bologna").strip())),

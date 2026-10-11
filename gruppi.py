@@ -8,6 +8,14 @@ Le prove sono in prova_gruppi.py: da rilanciare dopo ogni modifica a parole o gr
 """
 import re
 
+# "cosa devo fare domenica", "sabato che c'è?": il 12/10 "domenica cosa devo fare" restava con il solo gruppo base e
+# Gemini rispondeva a memoria, senza guardare né calendario né allenamenti
+_GIORNI = (r"(?:oggi|domani|dopodomani|stasera|stamattina|luned|marted|mercoled|gioved|venerd|sabato|domen|"
+           r"weekend|fine settimana|settimana)")
+_PROGRAMMA = (r"(?:cosa|che) (?:devo fare|faccio|ho|c'è|c'e|si fa)|(?:ho|c'è) (?:qualcosa|da fare)|in programma|"
+              r"programma (?:di|per)")
+_CHE_FARE = rf"(?:{_PROGRAMMA})\b.*\b{_GIORNI}|\b{_GIORNI}.*\b(?:{_PROGRAMMA})"
+
 # nome: (parole che lo attivano, strumenti, regole per il prompt di sistema)
 GRUPPI: dict[str, tuple[str, list[str], str]] = {
     "base": (
@@ -92,21 +100,25 @@ mostra_alloggi, mai cerca_nel_browser""",
     ),
     "calendario": (
         r"impegn|appuntament|calendari|agenda|event|lezion|riunion|incontr|\bsegna\b|sposta|disdic|"
-        r"cosa ho (?:oggi|domani|luned|marted|mercoled|gioved|venerd|sabato|domenica)|sono libero|libero (?:oggi|domani)",
+        r"cosa ho (?:oggi|domani|luned|marted|mercoled|gioved|venerd|sabato|domenica)|sono libero|libero (?:oggi|domani)|"
+        + _CHE_FARE,
         ["eventi_calendario", "crea_evento", "sposta_evento", "cancella_evento"],
-        """- impegni e appuntamenti: eventi_calendario (per "oggi" usa da 00:00 a 23:59 di oggi), crea_evento, sposta_evento; \
+        """- "cosa devo fare / cosa ho / che c'è <giorno>": eventi_calendario di quel giorno (anche gli allenamenti sono \
+eventi del calendario), mai a memoria
+- impegni e appuntamenti: eventi_calendario (per "oggi" usa da 00:00 a 23:59 di oggi), crea_evento, sposta_evento; \
 cancella_evento solo dopo un sì esplicito dell'utente. "Ricordami" = promemoria su Telegram; "segna/metti in \
 calendario/appuntamento" = evento""",
     ),
     "allenamento": (
         r"allen|palestra|\bscheda\b|esercizi|\bcorsa\b|correre|corpo libero|workout|\bpesi\b|squat|addominal|"
-        r"piegament|trainer|fitness|muscol|\bsedut[ae]\b|giorn[oi] di riposo|tennis|\bpartit[ae]\b",
+        r"piegament|trainer|fitness|muscol|\bsedut[ae]\b|giorn[oi] di riposo|tennis|\bpartit[ae]\b|" + _CHE_FARE,
         ["seduta_allenamento", "allenamenti_settimana", "scheda_allenamento", "pianifica_allenamenti",
          "segna_allenamento"],
         """- allenamenti (sei anche il suo personal trainer; NON va in palestra: corpo libero in casa, corsa e tennis \
 con gli amici): "ho giocato a tennis" = segna_allenamento con seduta='tennis'. "Cosa \
-faccio oggi di allenamento", "che allenamento ho domani": seduta_allenamento, e riporta riscaldamento ed esercizi per \
-intero come sono scritti (è una richiesta di elenco). "Come va la settimana", "quanti allenamenti ho fatto": \
+faccio oggi di allenamento", "che allenamento ho domani/domenica": seduta_allenamento con il giorno come lo dice \
+l'utente ('domenica', non una data calcolata da te), e riporta riscaldamento ed esercizi per intero come sono scritti \
+(è una richiesta di elenco). Mai dire che un allenamento c'è o non c'è senza averlo controllato con uno strumento. "Come va la settimana", "quanti allenamenti ho fatto": \
 allenamenti_settimana; "fammi vedere la scheda", "come rendo più difficili gli esercizi": scheda_allenamento. "Ho \
 fatto la corsa", "oggi l'ho saltato", "recuperalo": segna_allenamento. \
 Organizzare la settimana: pianifica_allenamenti (rifai=True solo se chiede di rifarla), mai crea_evento. Esercizi, \

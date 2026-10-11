@@ -553,7 +553,10 @@ def pulsante(dati: str) -> tuple[str, list]:
         return _esito(s, parti[2], stato, imp, quando)
 
 
-def _giorno(testo: str) -> datetime.date:
+def _giorno(testo: str, passato: bool = False) -> datetime.date:
+    """'oggi', 'domani', 'ieri', un giorno della settimana o 'AAAA-MM-GG'. Il giorno della settimana è il prossimo
+    con quel nome, oggi compreso ("domenica" di lunedì 12/10 = 18/10), oppure con passato=True l'ultimo ("ho fatto
+    la corsa lunedì")."""
     testo = testo.strip().lower()
     adesso = _adesso()
     oggi = adesso.date()
@@ -563,6 +566,12 @@ def _giorno(testo: str) -> datetime.date:
         scarto.update(domani=0, dopodomani=1)
     if testo in scarto:
         return oggi + datetime.timedelta(days=scarto[testo])
+    nome = next((i for i, g in enumerate(_GIORNI_INTERI) if g.rstrip("ì") in testo), None)
+    if nome is not None and not re.match(r"\d{4}-\d{2}-\d{2}", testo):
+        if passato or "scors" in testo:
+            return oggi - datetime.timedelta(days=(oggi.weekday() - nome) % 7 or (7 if "scors" in testo else 0))
+        avanti = (nome - oggi.weekday()) % 7
+        return oggi + datetime.timedelta(days=avanti or (7 if "prossim" in testo else 0))
     return datetime.date.fromisoformat(testo[:10])
 
 
@@ -573,7 +582,8 @@ def seduta_allenamento(giorno: str = "oggi") -> str:
     attuale, o dalla scheda) con il link alla pagina Darebee da riportare all'utente.
 
     Args:
-        giorno: 'oggi', 'domani', 'ieri' oppure 'AAAA-MM-GG'
+        giorno: 'oggi', 'domani', 'ieri', il nome di un giorno come lo dice l'utente ('domenica', 'prossima domenica':
+            lo strumento sa quale data è) oppure 'AAAA-MM-GG'
     """
     data = _giorno(giorno)
     with _lock:
@@ -688,11 +698,11 @@ def segna_allenamento(esito: str, giorno: str = "oggi", seduta: str = "") -> str
     Args:
         esito: 'fatto', 'saltato', oppure 'recupera' (solo se l'utente chiede di recuperarlo: lo rimette nel primo
             buco libero dei prossimi 3 giorni)
-        giorno: 'oggi', 'ieri' oppure 'AAAA-MM-GG'
-        seduta: 'tennis', 'corsa' o 'corpo libero' se l'utente lo nomina; vuoto = l'ultima del giorno. Il tennis
+        giorno: 'oggi', 'ieri', il nome di un giorno passato ('lunedì') oppure 'AAAA-MM-GG'
+        seduta:'tennis', 'corsa' o 'corpo libero' se l'utente lo nomina; vuoto = l'ultima del giorno. Il tennis
             giocato in un giorno diverso da quello in calendario si trova lo stesso, nella stessa settimana
     """
-    data = _giorno(giorno)
+    data = _giorno(giorno, passato=True)
     with _lock:
         stato, imp = _carica(), _impostazioni()
         sedute = [s for s in stato["sedute"] if s["stato"] != "cancellato" and _dt(s["inizio"]).date() == data]
