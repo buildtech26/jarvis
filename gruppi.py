@@ -109,7 +109,8 @@ intero come sono scritti (è una richiesta di elenco). "Come va la settimana", "
 allenamenti_settimana; "fammi vedere la scheda", "come rendo più difficili gli esercizi": scheda_allenamento. "Ho \
 fatto la corsa", "oggi l'ho saltato", "recuperalo": segna_allenamento. \
 Organizzare la settimana: pianifica_allenamenti (rifai=True solo se chiede di rifarla), mai crea_evento. Esercizi, \
-serie e carichi SOLO dalla scheda: non inventarne""",
+serie e carichi SOLO dal risultato degli strumenti (allenamenti di darebee.com o scheda): non inventarne; se c'è il \
+link Darebee, riportalo""",
     ),
     "alimentazione": (
         r"aliment|\bdiet|mangi|\bcibo|\bpast[oi]\b|colazion|pranz|\bcen[ae]\b|merend|spuntin|cucin|ricett|calori|"

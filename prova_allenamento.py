@@ -4,9 +4,10 @@ eventi veri, la scheda e lo stato veri non vengono toccati.
     .venv\\Scripts\\python prova_allenamento.py
 
 Settimana del 12/10: lunedì lezione fino alle 18:45, martedì lezione dalle 8, mercoledì pieno, sabato un compleanno
-(tutto il giorno, non conta).
+(tutto il giorno, non conta). Darebee è finto: catalogo, pagine lette e giorni di corsa scritti qui.
 """
 import datetime
+import random
 import re
 import sys
 import tempfile
@@ -15,6 +16,31 @@ from pathlib import Path
 import allenamento
 import brain
 import calendario
+import darebee
+
+CATALOGO = [{"t": t, "u": f"workouts/{u}.html", "ty": ty, "f": f, "d": d, "e": e} for t, u, ty, f, d, e in [
+    ("Gambe Uno", "gambe-1", "strength", "lower-body", "easy", "none"),
+    ("Gambe Due", "gambe-2", "strength", "lower-body", "normal", "none"),
+    ("Intero Uno", "intero-1", "strength", "full-body", "normal", "none"),
+    ("Intero Due", "intero-2", "strength", "full-body", "easy", "none"),
+    ("Alto Uno", "alto-1", "strength", "upper-body", "normal", "none"),
+    ("Addome Uno", "addome-1", "strength", "abs", "easy", "none"),
+    ("Manubri", "manubri", "strength", "lower-body", "easy", "dumbbells"),
+    ("Troppo Duro", "duro", "strength", "full-body", "hard", "none"),
+    ("Solo Cardio", "cardio", "cardio", "full-body", "easy", "none")]]
+
+
+def darebee_zona(s: dict) -> str:
+    v = next(v for v in CATALOGO if v["u"] == s["darebee"])
+    return v["f"] if v["e"] == "none" and v["d"] in ("easy", "normal") and v["ty"] == "strength" else "sbagliato"
+
+
+def _letto_finto(percorso: str) -> dict:
+    if "start=" in percorso:
+        return {"livelli": [], "riposo": "", "esercizi": [f"corsa del giorno {percorso.split('start=')[1]}"],
+                "come": "", "consigli": ""}
+    return {"livelli": ["3 serie", "5 serie", "7 serie"], "riposo": "fino a 2 minuti",
+            "esercizi": [f"10 squat di {percorso}"], "come": "Di fila, poi riposo.", "consigli": ""}
 
 
 def _t(testo: str) -> datetime.datetime:
@@ -74,6 +100,11 @@ def main() -> int:
     cal = CalendarioFinto()
     calendario._chiama = cal.chiama
     calendario.configurato = lambda: True
+    random.seed(7)
+    darebee.FILE = cartella / "darebee.json"
+    darebee.catalogo = lambda: CATALOGO
+    darebee.leggi = _letto_finto
+    darebee.giorni_corsa = lambda programma: [1, 3, 5, 7]
 
     def controlla():
         allenamento._ultimo_sync = 0.0
@@ -106,7 +137,17 @@ def main() -> int:
     atteso(orari() == ["lun 19:30 Corpo libero A", "mar 19:00 Corsa", "gio 19:00 Corpo libero B", "ven 07:00 Corsa",
                        "sab 19:00 Corpo libero A"], "giorni e orari", orari())
     atteso("Riposo: mer, dom" in messaggi[0][0], "giorni di riposo", messaggi[0][0])
-    atteso("Squat a corpo libero" in cal.allenamenti()[0]["descrizione"], "esercizi nella descrizione")
+    desc = cal.allenamenti()[0]["descrizione"]
+    atteso("Riscaldamento" in desc and "livello I (fase 1): 3 serie" in desc and "darebee.com/workouts/" in desc,
+           "allenamento Darebee nella descrizione", desc)
+    atteso("corsa del giorno 1" in cal.allenamenti()[1]["descrizione"] and "corsa del giorno 3" in cal.allenamenti()[3]["descrizione"],
+           "le due corse sono i giorni 1 e 3 del programma", [e["descrizione"] for e in cal.allenamenti()])
+    zone = {s["tipo"]: darebee_zona(s) for s in allenamento._carica()["sedute"] if s.get("darebee")}
+    atteso(zone.get("Corpo libero A") in ("lower-body", "full-body") and zone.get("Corpo libero B") in ("upper-body", "abs", "full-body"),
+           "zone di A e B, senza attrezzi, né hard, né cardio", allenamento._carica()["sedute"])
+    usati = [s["darebee"] for s in allenamento._carica()["sedute"] if s.get("darebee")]
+    atteso(len(usati) == 3 and len(set(usati)) == 3, "tre allenamenti diversi", usati)
+    atteso("(Gambe" in messaggi[0][0] or "(Intero" in messaggi[0][0], "titolo Darebee nel messaggio", messaggi[0][0])
     atteso(allenamento._carica()["lettera"] == "B", "la settimana dopo comincia con la B")
 
     # 4. un secondo giro non duplica niente
@@ -126,7 +167,7 @@ def main() -> int:
     testo, pulsanti = allenamento.pulsante(dati_fatto)
     atteso(testo.startswith("✅") and not pulsanti, "pulsante fatto", testo)
     storico = (cartella / "Allenamento" / "Storico.md").read_text(encoding="utf-8")
-    atteso("Corpo libero A · fase 1 · ✅ fatto" in storico, "storico in Obsidian", storico)
+    atteso(re.search(r"Corpo libero A \((Gambe|Intero) \w+\) · fase 1 · ✅ fatto", storico), "storico in Obsidian", storico)
     atteso(controlla() == [], "non richiede due volte")
 
     # 7. corsa spostata a mano alle 20, Corpo libero B di giovedì cancellato a mano
@@ -155,7 +196,7 @@ def main() -> int:
     r = allenamento.seduta_allenamento("2026-10-14")
     atteso("riposo" in r and "Il prossimo: Corsa gio 15/10" in r, "giorno di riposo con il prossimo (il recupero)", r)
     r = allenamento.seduta_allenamento("domani")
-    atteso("Corpo libero A" in r and "Squat a corpo libero" in r, "allenamento di domani", r)
+    atteso("Corpo libero A" in r and "Darebee ·" in r and "10 squat di workouts/" in r, "allenamento di domani", r)
     r = allenamento.allenamenti_settimana()
     atteso("fatto" in r and "saltato" in r and "Sedute fatte in tutto: 2" in r, "settimana", r)
 
@@ -166,7 +207,41 @@ def main() -> int:
                    and (m := re.fullmatch(schema, frase))]
         atteso(trovato and next(g for g in trovato[0].groups() if g) == giorno, f"comando diretto {frase!r}")
 
-    print(f"10 gruppi di casi, errori: {errori}")
+    # 11. Darebee: la corsa saltata martedì si ripete (il recupero di giovedì è la corsa 1, venerdì la 2), il
+    # livello segue la fase, sito giù = link e scheda, allenamenti senza livelli scartati, lettura della pagina
+    r = allenamento.seduta_allenamento("2026-10-15")
+    atteso("corsa del giorno 1" in r and "corsa 1 di 4" in r, "il recupero è la corsa 1", r)
+    r = allenamento.seduta_allenamento("2026-10-16")
+    atteso("corsa del giorno 3" in r, "venerdì la corsa 2 (giorno 3)", r)
+    sab = next(s for s in allenamento._carica()["sedute"] if s["stato"] == "in programma" and s["tipo"] == "Corpo libero A")
+    atteso("livello II (fase 2): 5 serie" in darebee.testo(sab["darebee"], sab["darebee_titolo"], 2), "fase 2 = livello II")
+
+    def giu(percorso):
+        raise RuntimeError("sito giù")
+    darebee.leggi = giu
+    r = allenamento.seduta_allenamento("domani")
+    atteso("non sono riuscito a leggerlo" in r and "Squat a corpo libero" in r and "darebee.com/workouts/" in r,
+           "sito giù: link e scheda", r)
+    r = allenamento.seduta_allenamento("2026-10-16")
+    atteso("8 volte: 1 min" in r, "sito giù: la corsa della scheda", r)
+
+    letti = []
+
+    def senza_livelli(percorso):
+        letti.append(percorso)
+        return {**_letto_finto(percorso), "livelli": [] if len(letti) == 1 else ["3 serie"]}
+    darebee.leggi = senza_livelli
+    voce = darebee.scegli_e_leggi(["lower-body"], ["strength"], ["easy", "normal"], set())
+    atteso(len(letti) == 2 and voce["u"] == letti[1] and darebee._carica()["scartati"] == [letti[0]],
+           "allenamento senza livelli scartato", (letti, voce))
+
+    pagina = ('<img src="/images/workouts/muscles/x.jpg"><img src="/images/workouts/x-workout.jpg?v=1">'
+              '<div class="infotext"><p>Rest up to 2 minutes &amp; breathe.</p></div>')
+    darebee._get = lambda percorso: type("R", (), {"text": pagina})()
+    atteso(darebee._pagina("workouts/x.html") == ("Rest up to 2 minutes & breathe.", "images/workouts/x-workout.jpg", False),
+           "lettura della pagina", darebee._pagina("workouts/x.html"))
+
+    print(f"11 gruppi di casi, errori: {errori}")
     return 1 if errori else 0
 
 

@@ -7,6 +7,12 @@ orienta con quelli.
 Obiettivo: forma generale · livello principiante · niente palestra · 5 sedute a settimana: 3 a corpo libero in casa
 (A e B alternate) e 2 di corsa all'aperto.
 
+Con "darebee: sì" gli allenamenti vengono da [darebee.com](https://darebee.com). Corpo libero: per ogni seduta Jarvis
+sceglie un allenamento senza attrezzi mai fatto prima (A: gambe o corpo intero; B: parte alta, addominali o corpo
+intero) e la fase decide il livello del poster: fase 1 = Level I, fase 2 = Level II, fase 3 = Level III. Corsa: i giorni
+di corsa del "programma corsa", uno dopo l'altro (una corsa saltata si ripete). Gli esercizi delle fasi qui sotto
+restano di riserva, per quando il sito non risponde o se scrivi "darebee: no".
+
 ## Impostazioni
 
 - inizio: 2026-10-12
@@ -19,11 +25,17 @@ Obiettivo: forma generale · livello principiante · niente palestra · 5 sedute
 - pianifica: domenica 18:00
 - fase 2 dopo: 15
 - fase 3 dopo: 35
+- darebee: sì
+- darebee tipo: strength
+- darebee difficoltà: easy, normal
+- programma corsa: 8weeks-to-5k
 
 Cosa vogliono dire: "mattina" e "sera" sono le fasce in cui Jarvis cerca i buchi (il corpo libero prima di sera, la
 corsa prima di mattina; lascia vuota una fascia per non usarla). "margine" sono i minuti liberi che lascia prima e dopo
 ogni impegno, per spostarti e farti la doccia. "pianifica" è quando mette in calendario la settimana dopo. Le fasi
-cambiano dopo quel numero di sedute fatte (quelle che segni con ✅ su Telegram).
+cambiano dopo quel numero di sedute fatte (quelle che segni con ✅ su Telegram). "darebee tipo" e "darebee difficoltà"
+sono i filtri del sito (tipi: strength, cardio, hiit, metcon, combat...; difficoltà: light, easy, normal, hard,
+advanced), separati da virgole. "programma corsa" è il nome nell'indirizzo del programma (darebee.com/programs/....html).
 
 ## Come progredire
 
@@ -39,8 +51,8 @@ cambiano dopo quel numero di sedute fatte (quelle che segni con ✅ su Telegram)
 
 ## Corpo libero A
 
-Gambe, spinta e addominali. Riscaldamento: 5 min di mobilità (circonduzioni di braccia e anche, gatto-mucca, 10 squat
-lenti) e 1 min di saltelli leggeri. Alla fine: 5 min di stretching di quadricipiti, glutei e petto.
+Riscaldamento: 5 min di mobilità (circonduzioni di braccia e anche, gatto-mucca, 10 squat lenti) e 1 min di saltelli
+leggeri. Alla fine: 5 min di stretching dei muscoli lavorati.
 
 ### Fase 1
 
@@ -68,9 +80,8 @@ lenti) e 1 min di saltelli leggeri. Alla fine: 5 min di stretching di quadricipi
 
 ## Corpo libero B
 
-Schiena, parte posteriore delle gambe e addominali. Riscaldamento: 5 min di mobilità (gatto-mucca, circonduzioni di
-spalle e anche, 10 good morning con le mani dietro la testa). Alla fine: 5 min di stretching di femorali, schiena e
-spalle.
+Riscaldamento: 5 min di mobilità (gatto-mucca, circonduzioni di spalle e anche, 10 good morning con le mani dietro la
+testa). Alla fine: 5 min di stretching dei muscoli lavorati.
 
 ### Fase 1
 

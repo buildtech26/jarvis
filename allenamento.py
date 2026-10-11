@@ -4,6 +4,9 @@ Niente palestra: corpo libero in casa (A e B alternate) e corsa all'aperto. Il g
 nella scheda (domenica 18:00) Jarvis mette in calendario le sedute della settimana dopo, nei buchi fra le lezioni: il
 corpo libero prima di sera, la corsa prima di mattina, altrimenti nell'altra fascia. Mezz'ora dopo la fine di ogni seduta chiede su Telegram se è stata fatta (✅/❌); se è saltata
 propone un recupero nei 3 giorni dopo. La fase della scheda (1-3) sale con le sedute fatte, non con le settimane.
+Con "darebee: sì" nella scheda le sedute vengono da darebee.com (darebee.py): per il corpo libero un allenamento scelto
+a ogni seduta, al livello I-II-III della fase; per la corsa i giorni di un programma, in ordine. Gli esercizi della
+scheda restano di riserva se il sito o Gemini non rispondono.
 Gli eventi spostati o cancellati a mano si rileggono dal calendario ogni mezz'ora. Lo stato (id degli eventi, esiti)
 sta in allenamento.json, fuori da git; lo storico leggibile in Obsidian (Storico.md).
 """
@@ -18,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import calendario
+import darebee
 
 CARTELLA = Path(os.getenv("JARVIS_ALLENAMENTO", Path.home() / "Desktop" / "obsidian" / "Jarvis" / "Allenamento"))
 FILE = Path(__file__).with_name("allenamento.json")
@@ -42,7 +46,12 @@ _pausa_fino = 0.0  # dopo un errore di calendario la pianificazione automatica a
 
 _PREDEFINITE = {"inizio": "", "sedute a settimana": "5", "mattina": "07:00-09:00", "sera": "19:00-22:00",
                 "margine": "30", "durata corsa": "45", "durata corpo libero": "45",
-                "pianifica": "domenica 18:00", "fase 2 dopo": "15", "fase 3 dopo": "35"}
+                "pianifica": "domenica 18:00", "fase 2 dopo": "15", "fase 3 dopo": "35",
+                "darebee": "sì", "darebee tipo": "strength", "darebee difficoltà": "easy, normal",
+                "programma corsa": "8weeks-to-5k"}
+# le zone di Darebee per seduta: se ne estrae una e poi l'allenamento, così il corpo intero non prende tutto
+_ZONE = {"Corpo libero A": ["lower-body", "full-body"], "Corpo libero B": ["upper-body", "abs", "full-body"]}
+_VALIDE = ("fatto", "in programma", "chiesto")  # le sedute che contano come fatte o da fare
 
 
 # --- scheda (Obsidian) ---
@@ -121,20 +130,63 @@ def _fasce(imp: dict, tipo: str) -> list[tuple[datetime.time, datetime.time]]:
     return [f for f in (_finestra(imp, nome) for nome in ordine) if f]
 
 
+def _intro(sezione: str) -> str:
+    """Il testo della sezione prima delle fasi: riscaldamento e defaticamento."""
+    righe = sezione.splitlines()
+    primo = next((i for i, r in enumerate(righe) if r.startswith("###")), len(righe))
+    return "\n".join(righe[:primo]).strip()
+
+
 def _contenuto(tipo: str, fase: int) -> str:
     """Riscaldamento ed esercizi di quella seduta nella fase; se la fase manca (scheda accorciata a mano) vale la
     più alta presente."""
     sezione = _sezione(_scheda(), tipo, 2)
     if not sezione:
         return f"(nella scheda manca la sezione '## {tipo}')"
-    righe = sezione.splitlines()
-    primo = next((i for i, r in enumerate(righe) if r.startswith("###")), len(righe))
-    intro = "\n".join(righe[:primo]).strip()
+    intro = _intro(sezione)
     for f in range(fase, 0, -1):
         esercizi = _sezione(sezione, f"Fase {f}", 3)
         if esercizi:
             return f"Fase {f}. {intro}\n{esercizi}".strip()
     return sezione
+
+
+def _darebee(imp: dict) -> bool:
+    return imp["darebee"].strip().lower() in ("sì", "si", "yes", "true", "1", "on")
+
+
+def _lista(imp: dict, chiave: str) -> list[str]:
+    voci = [v.strip().lower() for v in re.split(r"[,;]", imp[chiave]) if v.strip()]
+    return voci or [v.strip() for v in _PREDEFINITE[chiave].split(",")]
+
+
+def _corsa_n(stato: dict, s: dict) -> int:
+    """Quale corsa del programma tocca a questa seduta: 1 + le corse prima di lei fatte o in programma. Una corsa
+    saltata non conta, così la successiva la ripete."""
+    return 1 + sum(1 for x in stato["sedute"] if _base(x["tipo"]) == "Corsa" and x["n"] != s["n"]
+                   and x["stato"] in _VALIDE and _dt(x["inizio"]) < _dt(s["inizio"]))
+
+
+def _contenuto_seduta(s: dict, stato: dict, imp: dict, fase: int) -> str:
+    """Cosa c'è da fare in una seduta: l'allenamento Darebee scelto per lei o il giorno di corsa del programma (che
+    dipende dalle corse fatte prima, quindi si ricalcola ogni volta), altrimenti la scheda."""
+    if not _darebee(imp) or (_base(s["tipo"]) == _ALTERNATA and not s.get("darebee")):
+        return _contenuto(s["tipo"], fase)
+    intro = _intro(_sezione(_scheda(), s["tipo"], 2))
+    try:
+        if _base(s["tipo"]) == "Corsa":
+            return f"{intro}\n{darebee.corsa(imp['programma corsa'].strip(), _corsa_n(stato, s))}".strip()
+        return f"{intro}\n{darebee.testo(s['darebee'], s['darebee_titolo'], fase)}".strip()
+    except Exception as e:
+        print(f"[darebee] {s['tipo']} di {_quando(s)} non letto, uso la scheda: {e}")
+        if _base(s["tipo"]) == "Corsa":
+            return _contenuto(s["tipo"], fase)
+        return (f"Darebee · {s['darebee_titolo']}: gli esercizi sono nel poster su {darebee.link(s['darebee'])} "
+                f"(non sono riuscito a leggerlo). Se la pagina non si apre, dalla scheda:\n{_contenuto(s['tipo'], fase)}")
+
+
+def _nome(s: dict) -> str:
+    return f"{s['tipo']} ({s['darebee_titolo']})" if s.get("darebee_titolo") else s["tipo"]
 
 
 # --- stato (allenamento.json) e storico (Obsidian) ---
@@ -187,7 +239,7 @@ def _storico(s: dict):
     d = _dt(s["inizio"])
     simbolo = {"fatto": "✅", "saltato": "❌"}.get(s["stato"], "·")
     with file.open("a", encoding="utf-8") as f:
-        f.write(f"- {d:%Y-%m-%d} {_GIORNI[d.weekday()]} {d:%H:%M} · {s['tipo']} · fase {s['fase']} · {simbolo} {s['stato']}\n")
+        f.write(f"- {d:%Y-%m-%d} {_GIORNI[d.weekday()]} {d:%H:%M} · {_nome(s)} · fase {s['fase']} · {simbolo} {s['stato']}\n")
 
 
 # --- calendario ---
@@ -215,14 +267,30 @@ def _titolo(tipo: str) -> str:
     return f"{_EMOJI[_base(tipo)]} Allenamento: {tipo}"
 
 
+def _scegli_darebee(seduta: dict, stato: dict, imp: dict):
+    """Per il corpo libero un allenamento Darebee mai fatto né già in calendario; se il sito non risponde la seduta
+    resta con gli esercizi della scheda."""
+    esclusi = {x["darebee"] for x in stato["sedute"] if x.get("darebee") and x["stato"] in _VALIDE}
+    try:
+        voce = darebee.scegli_e_leggi(_ZONE.get(seduta["tipo"], ["full-body"]), _lista(imp, "darebee tipo"),
+                                      _lista(imp, "darebee difficoltà"), esclusi)
+        seduta["darebee"], seduta["darebee_titolo"] = voce["u"], voce["t"]
+    except Exception as e:
+        print(f"[darebee] nessun allenamento per {seduta['tipo']}, uso la scheda: {e}")
+
+
 def _crea(stato: dict, imp: dict, tipo: str, inizio: datetime.datetime, **altro) -> dict:
+    """`altro` finisce nella seduta: recupero_di, e per un recupero l'allenamento Darebee di quella saltata."""
     fase = _fase(_fatte(stato), imp)
     fine = inizio + _durata(imp, tipo)
-    ev = calendario._chiama("crea", titolo=_titolo(tipo), inizio=inizio.isoformat(), fine=fine.isoformat(), luogo="",
-                            descrizione=f"{_contenuto(tipo, fase)}\n\nMesso in calendario da Jarvis.",
-                            tutto_il_giorno=False)["creato"]
-    seduta = {"n": stato["prossimo"], "id": ev["id"], "tipo": tipo, "fase": fase, "inizio": inizio.isoformat(),
+    seduta = {"n": stato["prossimo"], "tipo": tipo, "fase": fase, "inizio": inizio.isoformat(),
               "fine": fine.isoformat(), "stato": "in programma", **altro}
+    if _darebee(imp) and _base(tipo) == _ALTERNATA and not seduta.get("darebee"):
+        _scegli_darebee(seduta, stato, imp)
+    ev = calendario._chiama("crea", titolo=_titolo(tipo), inizio=inizio.isoformat(), fine=fine.isoformat(), luogo="",
+                            descrizione=f"{_contenuto_seduta(seduta, stato, imp, fase)}\n\nMesso in calendario da Jarvis.",
+                            tutto_il_giorno=False)["creato"]
+    seduta["id"] = ev["id"]
     stato["prossimo"] += 1
     stato["sedute"].append(seduta)
     _salva(stato)  # dopo ogni evento: se il successivo fallisce, al nuovo tentativo questo giorno risulta già preso
@@ -279,7 +347,7 @@ def _pianifica(lunedi: datetime.date, dopo: datetime.datetime) -> str:
         testo += (": non ho aggiunto niente, " + ("ci sono già tutte." if quante <= 0 else
                   "non trovo buchi liberi nelle tue fasce (mattina e sera nella scheda)."))
     else:
-        testo += " in calendario: " + "; ".join(f"{_quando(s)} {s['tipo']}" for s in create) + "."
+        testo += " in calendario: " + "; ".join(f"{_quando(s)} {_nome(s)}" for s in create) + "."
         giorni = {_dt(s["inizio"]).weekday() for s in tutte_sedute}
         riposo = [_GIORNI[i] for i in range(7) if i not in giorni and lunedi + datetime.timedelta(days=i) >= dopo.date()]
         if riposo:
@@ -424,7 +492,8 @@ def _esito(s: dict, azione: str, stato: dict, imp: dict, quando: datetime.dateti
     if azione == "rec":
         if s.get("recuperata"):
             return "L'ho già rimessa in calendario.", []
-        nuova = _crea(stato, imp, s["tipo"], quando, recupero_di=s["n"])
+        stesso = {k: s[k] for k in ("darebee", "darebee_titolo") if k in s}  # si recupera lo stesso allenamento
+        nuova = _crea(stato, imp, s["tipo"], quando, recupero_di=s["n"], **stesso)
         s["recuperata"] = nuova["n"]
         _salva(stato)
         return f"🔁 In calendario: {s['tipo']} {_quando(nuova)}.", []
@@ -457,7 +526,8 @@ def _giorno(testo: str) -> datetime.date:
 # --- strumenti per Gemini ---
 
 def seduta_allenamento(giorno: str = "oggi") -> str:
-    """L'allenamento in calendario per un giorno, con riscaldamento ed esercizi della fase attuale della scheda.
+    """L'allenamento in calendario per un giorno: riscaldamento ed esercizi (da Darebee, al livello della fase
+    attuale, o dalla scheda) con il link alla pagina Darebee da riportare all'utente.
 
     Args:
         giorno: 'oggi', 'domani', 'ieri' oppure 'AAAA-MM-GG'
@@ -475,7 +545,8 @@ def seduta_allenamento(giorno: str = "oggi") -> str:
                       key=lambda s: s["inizio"])
         testo = f"{_GIORNI_INTERI[data.weekday()].capitalize()} {data:%d/%m}: nessun allenamento in calendario, riposo."
         return testo + (f" Il prossimo: {dopo[0]['tipo']} {_quando(dopo[0])}." if dopo else "")
-    return "\n\n".join(f"{s['tipo']} {_quando(s)} ({s['stato']}).\n{_contenuto(s['tipo'], fase)}" for s in sedute)
+    return "\n\n".join(f"{s['tipo']} {_quando(s)} ({s['stato']}).\n{_contenuto_seduta(s, stato, imp, fase)}"
+                       for s in sedute)
 
 
 def allenamenti_settimana(settimana: str = "questa") -> str:
@@ -490,7 +561,7 @@ def allenamenti_settimana(settimana: str = "questa") -> str:
     fatte, fase = _fatte(stato), _fase(_fatte(stato), imp)
     sedute = sorted(_della_settimana(stato, lunedi), key=lambda s: s["inizio"])
     if sedute:
-        righe = [f"{_quando(s)} {s['tipo']}: {s['stato']}" for s in sedute]
+        righe = [f"{_quando(s)} {_nome(s)}: {s['stato']}" for s in sedute]
     elif str(lunedi) in stato["settimane"]:
         righe = ["Nessuna seduta: non c'erano buchi liberi."]
     else:
@@ -512,11 +583,25 @@ def scheda_allenamento(seduta: str = "") -> str:
         stato, imp = _carica(), _impostazioni()
     fase = _fase(_fatte(stato), imp)
     tipo = next((t for t in TIPI if seduta and t.lower().startswith(seduta.strip().lower())), None)
+    if tipo and _darebee(imp):
+        prossima = sorted((s for s in stato["sedute"] if s["tipo"] == tipo and s["stato"] == "in programma"
+                           and _dt(s["fine"]) > _adesso()), key=lambda s: s["inizio"])
+        if prossima:
+            return f"{tipo}, la prossima ({_quando(prossima[0])}). {_contenuto_seduta(prossima[0], stato, imp, fase)}"
+        if _base(tipo) == _ALTERNATA:
+            return (f"{tipo}: a ogni seduta scelgo un allenamento Darebee nuovo, lo vedi quando è in calendario. "
+                    f"Riserva della scheda: {_contenuto(tipo, fase)}")
     if tipo:
         return f"{tipo}. {_contenuto(tipo, fase)}"
+    fonte = ""
+    if _darebee(imp):
+        fonte = (" Le sedute vengono da darebee.com: per il corpo libero un allenamento senza attrezzi diverso ogni "
+                 f"volta (A gambe o corpo intero, B parte alta, addominali o corpo intero) al livello {'I' * fase} del "
+                 f"poster; la corsa segue il programma {imp['programma corsa']}.")
     return (f"Fase {fase}, {_fatte(stato)} sedute fatte. {_numero(imp, 'sedute a settimana')} sedute a settimana: "
-            f"corpo libero in casa (A e B alternate) e corsa a giorni alterni, niente palestra. Fasce: mattina {imp['mattina'] or 'non usata'}, "
-            f"sera {imp['sera'] or 'non usata'}.\nCome progredire:\n{_sezione(_scheda(), 'Come progredire', 2)}")
+            f"corpo libero in casa (A e B alternate) e corsa a giorni alterni, niente palestra.{fonte} Fasce: mattina "
+            f"{imp['mattina'] or 'non usata'}, sera {imp['sera'] or 'non usata'}.\nCome progredire:\n"
+            f"{_sezione(_scheda(), 'Come progredire', 2)}")
 
 
 def pianifica_allenamenti(settimana: str = "prossima", rifai: bool = False) -> str:
