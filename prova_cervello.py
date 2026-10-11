@@ -120,7 +120,14 @@ def main() -> int:
     atteso(len(g.modelli) == 1 and risposta.startswith("Fatto"), f"ricordati: {len(g.modelli)} richieste", righe)
     atteso("prova-test" in memoria.contenuto(), "ricordati: non salvato in memoria", righe)
 
-    print(f"6 casi, errori: {len(errori)}")
+    # 7. strumento integrale (l'allenamento): arriva il risultato per intero, non il riassunto del modello
+    tools.PER_NOME["seduta_allenamento"] = lambda **k: "Corpo libero A.\n1. Riscaldamento\n   - 10 squat"
+    risposta, g, righe = _prova("volevo dire oggi scusa", [_chiamata("seduta_allenamento"),
+                                                            _testo("Un delizioso circuito, ecco il link.")])
+    atteso(risposta == "Corpo libero A.\n1. Riscaldamento\n   - 10 squat", f"integrale: {risposta!r}", righe)
+    atteso(any("[integrale]" in r for r in righe), "integrale: riga nel log", righe)
+
+    print(f"7 casi, errori: {len(errori)}")
     return 1 if errori else 0
 
 

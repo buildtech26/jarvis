@@ -138,7 +138,8 @@ def main() -> int:
                        "sab 19:00 Corpo libero A"], "giorni e orari", orari())
     atteso("Riposo: mer, dom" in messaggi[0][0], "giorni di riposo", messaggi[0][0])
     desc = cal.allenamenti()[0]["descrizione"]
-    atteso("Riscaldamento" in desc and "livello I (fase 1): 3 serie" in desc and "darebee.com/workouts/" in desc,
+    atteso("Riscaldamento" in desc and "livello I (fase 1)" in desc and "Esercizi: 3 serie" in desc
+           and "darebee.com/workouts/" in desc,
            "allenamento Darebee nella descrizione", desc)
     atteso("corsa del giorno 1" in cal.allenamenti()[1]["descrizione"] and "corsa del giorno 3" in cal.allenamenti()[3]["descrizione"],
            "le due corse sono i giorni 1 e 3 del programma", [e["descrizione"] for e in cal.allenamenti()])
@@ -214,7 +215,8 @@ def main() -> int:
     r = allenamento.seduta_allenamento("2026-10-16")
     atteso("corsa del giorno 3" in r, "venerdì la corsa 2 (giorno 3)", r)
     sab = next(s for s in allenamento._carica()["sedute"] if s["stato"] == "in programma" and s["tipo"] == "Corpo libero A")
-    atteso("livello II (fase 2): 5 serie" in darebee.testo(sab["darebee"], sab["darebee_titolo"], 2), "fase 2 = livello II")
+    r = darebee.testo(sab["darebee"], sab["darebee_titolo"], 2)
+    atteso("livello II (fase 2)" in r and "Esercizi: 5 serie" in r, "fase 2 = livello II", r)
 
     def giu(percorso):
         raise RuntimeError("sito giù")
@@ -224,6 +226,20 @@ def main() -> int:
            "sito giù: link e scheda", r)
     r = allenamento.seduta_allenamento("2026-10-16")
     atteso("8 volte: 1 min" in r, "sito giù: la corsa della scheda", r)
+
+    # passo per passo: riscaldamento, esercizi, "alla fine"; e alle 00:30 "domani" è il giorno appena cominciato
+    darebee.leggi = _letto_finto
+    r = allenamento.seduta_allenamento("domani")
+    atteso(re.search(r"\n1\. Riscaldamento: .*\n2\. Esercizi: 3 serie, riposo fino a 2 minuti\. Di fila.*\n   - 10 squat"
+                     r".*\n3\. Alla fine: 5 min di stretching", r), "seduta passo per passo", r)
+    r = allenamento.seduta_allenamento("2026-10-16")
+    atteso(re.search(r"\n1\. All'aperto.*camminata veloce\.\n2\. La corsa\.\n   - corsa del giorno 3\n3\. Alla fine: 5 min", r),
+           "corsa passo per passo", r)
+    adesso[0] = _t("2026-10-17 00:30")
+    atteso(allenamento._giorno("domani") == datetime.date(2026, 10, 17), "alle 00:30 domani = oggi")
+    adesso[0] = _t("2026-10-17 06:00")
+    atteso(allenamento._giorno("domani") == datetime.date(2026, 10, 18), "alle 6 domani = domani")
+    adesso[0] = _t("2026-10-16 09:00")
 
     letti = []
 

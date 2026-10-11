@@ -119,6 +119,9 @@ COMANDI = [
     (r"(?:quanto ho sul conto|(?:qual è il |dimmi il )?(?:mio )?saldo(?: del conto)?)", "spese_riepilogo",
      lambda m: spese.in_breve("saldo")),
 ]
+# strumenti il cui risultato arriva all'utente così com'è, senza il riassunto del modello: l'allenamento va detto per
+# intero (il 12/10 Flash-Lite aveva risposto con una battuta e il solo link, senza esercizi)
+INTEGRALI = {"seduta_allenamento"}
 RICORDA = re.compile(r"^(?:jarvis,?\s+)?(?:ricordati|ricorda|tieni a mente|memorizza)\b(?:\s+che)?\s+(.+)", re.I | re.S)
 
 
@@ -253,6 +256,11 @@ class Jarvis:
             # giusto era fuori dal gruppo base. Si riprova una volta con tutti
             log(f"  [gruppi] risposta di rinuncia con il solo gruppo base, riprovo con tutti: {risposta[:60]!r}")
             risposta = self._giro_gemini(modello, gruppi.TUTTI, log)
+        esiti = [r.split(": ", 1)[1] for r in dict.fromkeys(_risultati)]
+        # un errore dello strumento (argomenti sbagliati) invece lo spiega il modello
+        if _usati and set(_usati) <= INTEGRALI and not any(e.startswith("Errore:") for e in esiti):
+            log(f"  [integrale] risposta = risultato di {', '.join(dict.fromkeys(_usati))}")
+            risposta = "\n\n".join(esiti)
         return risposta
 
     def _giro_gemini(self, modello: str, scelti: list[str], log) -> str:

@@ -201,24 +201,32 @@ def scegli_e_leggi(zone: list[str], tipi: list[str], difficolta: list[str], escl
     raise RuntimeError("quattro allenamenti di fila senza livelli")
 
 
-def testo(percorso: str, titolo: str, fase: int) -> str:
-    """L'allenamento in italiano al livello della fase (fase 1 = Level I), con il link alla pagina."""
+def _passi(titolo: str, letto: dict, centrale: str, percorso: str, prima: str, dopo: str) -> str:
+    """La seduta come sequenza da seguire: riscaldamento, esercizi in elenco, defaticamento, consigli, link."""
+    passi = ([prima] if prima else []) + [f"{centrale} {letto.get('come', '')}".strip()]
+    righe = [titolo] + [f"{i}. {p}" for i, p in enumerate(passi, 1)]
+    righe += [f"   - {e}" for e in letto["esercizi"]]
+    if dopo:
+        righe.append(f"{len(passi) + 1}. {dopo}")
+    if letto.get("consigli"):
+        righe.append(f"Consigli: {letto['consigli']}")
+    righe.append(f"Poster con le figure e timer: {link(percorso)}")
+    return "\n".join(righe)
+
+
+def testo(percorso: str, titolo: str, fase: int, prima: str = "", dopo: str = "") -> str:
+    """L'allenamento in italiano al livello della fase (fase 1 = Level I), passo per passo, con il link alla pagina.
+    prima e dopo: riscaldamento e defaticamento della scheda."""
     letto = leggi(percorso)
-    righe = [f"Darebee · {titolo}"]
+    intestazione, centrale = f"Darebee · {titolo}.", "Esercizi"
     livelli = letto.get("livelli") or []
     if livelli:
         n = min(fase, len(livelli))
-        righe[0] += f", livello {'I' * n if n < 4 else n} (fase {fase}): {livelli[n - 1]}"
+        intestazione = f"Darebee · {titolo}, livello {'I' * n if n < 4 else n} (fase {fase})."
+        centrale += f": {livelli[n - 1]}"
     if letto.get("riposo"):
-        righe[0] += f", riposo {letto['riposo']}"
-    righe[0] += "."
-    if letto.get("come"):
-        righe.append(letto["come"])
-    righe += [f"- {e}" for e in letto["esercizi"]]
-    if letto.get("consigli"):
-        righe.append(f"Consigli: {letto['consigli']}")
-    righe.append(link(percorso))
-    return "\n".join(righe)
+        centrale += f", riposo {letto['riposo']}"
+    return _passi(intestazione, letto, centrale + ".", percorso, prima, dopo)
 
 
 # --- programmi di corsa ---
@@ -246,18 +254,13 @@ def giorni_corsa(programma: str) -> list[int]:
     return giorni
 
 
-def corsa(programma: str, n: int) -> str:
-    """La n-esima corsa del programma (dalla 1). Finito il programma resta l'ultima, la corsa continua."""
+def corsa(programma: str, n: int, prima: str = "", dopo: str = "") -> str:
+    """La n-esima corsa del programma (dalla 1), passo per passo. Finito il programma resta l'ultima, la corsa
+    continua."""
     giorni = giorni_corsa(programma)
     giorno = giorni[min(n, len(giorni)) - 1]
-    letto = leggi(f"programs/{programma}.html?start={giorno}")
-    righe = [f"Darebee · programma {programma}, giorno {giorno} (corsa {min(n, len(giorni))} di {len(giorni)})."]
+    percorso = f"programs/{programma}.html?start={giorno}"
+    intestazione = f"Darebee · programma {programma}, giorno {giorno} (corsa {min(n, len(giorni))} di {len(giorni)})."
     if n > len(giorni):
-        righe.append("Il programma è finito: tieni la corsa continua dell'ultimo giorno, oppure chiedi un programma nuovo.")
-    if letto.get("come"):
-        righe.append(letto["come"])
-    righe += [f"- {e}" for e in letto["esercizi"]]
-    if letto.get("consigli"):
-        righe.append(f"Consigli: {letto['consigli']}")
-    righe.append(link(f"programs/{programma}.html?start={giorno}"))
-    return "\n".join(righe)
+        intestazione += " Il programma è finito: tieni la corsa continua dell'ultimo giorno, oppure chiedi un programma nuovo."
+    return _passi(intestazione, leggi(percorso), "La corsa.", percorso, prima, dopo)

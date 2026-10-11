@@ -151,6 +151,16 @@ def _contenuto(tipo: str, fase: int) -> str:
     return sezione
 
 
+def _prima_dopo(intro: str) -> tuple[str, str]:
+    """L'introduzione della scheda divisa in quello che si fa prima (riscaldamento) e dopo ("alla fine ...")."""
+    intro = " ".join(intro.split())
+    m = re.search(r"[;.]?\s*alla fine:?\s*", intro, re.I)
+    if not m:
+        return intro, ""
+    prima, dopo = intro[:m.start()].strip().rstrip(".;"), intro[m.end():].strip()
+    return (prima + "." if prima else ""), (f"Alla fine: {dopo}" if dopo else "")
+
+
 def _darebee(imp: dict) -> bool:
     return imp["darebee"].strip().lower() in ("sì", "si", "yes", "true", "1", "on")
 
@@ -172,11 +182,11 @@ def _contenuto_seduta(s: dict, stato: dict, imp: dict, fase: int) -> str:
     dipende dalle corse fatte prima, quindi si ricalcola ogni volta), altrimenti la scheda."""
     if not _darebee(imp) or (_base(s["tipo"]) == _ALTERNATA and not s.get("darebee")):
         return _contenuto(s["tipo"], fase)
-    intro = _intro(_sezione(_scheda(), s["tipo"], 2))
+    prima, dopo = _prima_dopo(_intro(_sezione(_scheda(), s["tipo"], 2)))
     try:
         if _base(s["tipo"]) == "Corsa":
-            return f"{intro}\n{darebee.corsa(imp['programma corsa'].strip(), _corsa_n(stato, s))}".strip()
-        return f"{intro}\n{darebee.testo(s['darebee'], s['darebee_titolo'], fase)}".strip()
+            return darebee.corsa(imp["programma corsa"].strip(), _corsa_n(stato, s), prima, dopo)
+        return darebee.testo(s["darebee"], s["darebee_titolo"], fase, prima, dopo)
     except Exception as e:
         print(f"[darebee] {s['tipo']} di {_quando(s)} non letto, uso la scheda: {e}")
         if _base(s["tipo"]) == "Corsa":
@@ -516,8 +526,12 @@ def pulsante(dati: str) -> tuple[str, list]:
 
 def _giorno(testo: str) -> datetime.date:
     testo = testo.strip().lower()
-    oggi = _adesso().date()
+    adesso = _adesso()
+    oggi = adesso.date()
     scarto = {"oggi": 0, "": 0, "domani": 1, "ieri": -1, "dopodomani": 2}
+    if adesso.hour < 5:
+        # alle 00:30 "domani" è il giorno appena cominciato: chi non è ancora andato a dormire conta così
+        scarto.update(domani=0, dopodomani=1)
     if testo in scarto:
         return oggi + datetime.timedelta(days=scarto[testo])
     return datetime.date.fromisoformat(testo[:10])
