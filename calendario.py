@@ -1,6 +1,7 @@
 """Google Calendar tramite la web app Apps Script in calendario.gs."""
 import datetime
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -113,10 +114,68 @@ def crea_evento(titolo: str, inizio: str, fine: str = "", luogo: str = "", tutto
     """
     if not fine:
         fine = f"{datetime.datetime.strptime(inizio.strip()[:16].replace('T', ' '), '%Y-%m-%d %H:%M') + datetime.timedelta(hours=1):%Y-%m-%d %H:%M}"
+    if not tutto_il_giorno and _locale(_iso(fine)) - _locale(_iso(inizio)) > datetime.timedelta(hours=24):
+        # il 12/10 "ogni martedì e giovedì fino a Natale" era diventato un unico evento dal 13/10 al 22/12
+        return ("Non creato: un evento con orario non può durare più di un giorno. Se l'utente vuole un impegno che "
+                "si ripete (ogni martedì, tutti i giorni...), usa crea_eventi_ripetuti.")
     if tutto_il_giorno:
         ev = _chiama("crea", titolo=titolo, inizio=_iso(inizio), fine=_iso(fine), luogo=luogo, tutto_il_giorno=True)
         return "Creato: " + _riga(ev["creato"])
     return _con_controllo("crea", inizio, fine, titolo=titolo, luogo=luogo, tutto_il_giorno=False)
+
+
+def _giorni_settimana(testo: str) -> list[int]:
+    """'martedì, giovedì' / 'mar e gio' / 'tutti' → [1, 3]; 'mar' è martedì (marzo non c'entra qui)."""
+    testo = testo.lower()
+    if re.search(r"tutti|ogni giorno", testo):
+        return list(range(7))
+    if "feriali" in testo:
+        return list(range(5))
+    return sorted({_GIORNI.index(p[:3]) for p in re.findall(r"[a-zì]+", testo) if p[:3] in _GIORNI})
+
+
+def crea_eventi_ripetuti(titolo: str, giorni: str, ora_inizio: str, ora_fine: str = "", dal: str = "", al: str = "",
+                         luogo: str = "") -> str:
+    """Impegno che si ripete ("ogni martedì e giovedì alle 20:30 fino a Natale"): crea un evento separato per ogni
+    giorno, MAI un solo evento lungo settimane. Giorni con orari diversi = una chiamata per ogni orario. Riporta
+    all'utente quanti eventi, i giorni e le sovrapposizioni come scritti nel risultato.
+
+    Args:
+        titolo: nome dell'evento
+        giorni: giorni della settimana separati da virgole ('martedì, giovedì'), 'tutti' o 'feriali'
+        ora_inizio: 'HH:MM'
+        ora_fine: 'HH:MM'; vuoto = un'ora dopo
+        dal: prima data 'AAAA-MM-GG'; vuoto = oggi
+        al: ultima data compresa 'AAAA-MM-GG' ("fino a Natale" = il 24/12)
+        luogo: facoltativo
+    """
+    numeri = _giorni_settimana(giorni)
+    if not numeri:
+        return f"Non capisco i giorni '{giorni}': scrivili per nome (es. 'martedì, giovedì')."
+    primo = datetime.date.fromisoformat(dal.strip()[:10]) if dal.strip() else datetime.date.today()
+    ultimo = datetime.date.fromisoformat(al.strip()[:10]) if al.strip() else primo + datetime.timedelta(days=90)
+    date = [primo + datetime.timedelta(days=i) for i in range((ultimo - primo).days + 1)
+            if (primo + datetime.timedelta(days=i)).weekday() in numeri]
+    if not date:
+        return "Fra quelle date non cade nessuno di quei giorni: nessun evento creato."
+    if len(date) > 120:
+        return f"Sarebbero {len(date)} eventi: troppi. Chiedi all'utente una data di fine più vicina."
+    if not ora_fine:
+        ora_fine = f"{datetime.datetime.strptime(ora_inizio, '%H:%M') + datetime.timedelta(hours=1):%H:%M}"
+    orari = [(_iso(f"{d} {ora_inizio}"), _iso(f"{d} {ora_fine}")) for d in date]
+    # Apps Script impiega ~3,5 s a richiesta e ne restituisce al massimo 50 eventi: creazione e controllo delle
+    # sovrapposizioni (prima della creazione, una richiesta per data) tutti in parallelo
+    with ThreadPoolExecutor(max_workers=8) as esecutore:
+        controlli = list(esecutore.map(lambda o: _sovrapposti(*(_locale(x).strftime("%Y-%m-%d %H:%M") for x in o)), orari))
+        creati = list(esecutore.map(lambda o: _chiama("crea", titolo=titolo, inizio=o[0], fine=o[1], luogo=luogo,
+                                                      tutto_il_giorno=False)["creato"], orari))
+    sovrapposti = [_riga(ev) for trovati in controlli for ev in trovati if ev["titolo"] != titolo]
+    nomi = " e ".join(_GIORNI[n] for n in numeri)
+    testo = (f"Creati {len(creati)} eventi '{titolo}', {nomi} {ora_inizio}-{ora_fine}, dal {date[0]:%d/%m} al "
+             f"{date[-1]:%d/%m}: {', '.join(f'{d:%d/%m}' for d in date)}.")
+    if sovrapposti:
+        testo += "\nATTENZIONE, si sovrappongono a:\n" + "\n".join(sovrapposti)
+    return testo
 
 
 def sposta_evento(id: str, inizio: str, fine: str, nuovo_titolo: str = "") -> str:
@@ -132,4 +191,4 @@ def cancella_evento(id: str, confermato: bool = False) -> str:
     return "Cancellato: " + _chiama("cancella", id=id)["cancellato"]
 
 
-STRUMENTI = [eventi_calendario, crea_evento, sposta_evento, cancella_evento]
+STRUMENTI = [eventi_calendario, crea_evento, crea_eventi_ripetuti, sposta_evento, cancella_evento]

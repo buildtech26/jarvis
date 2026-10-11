@@ -34,6 +34,10 @@ CASI = [
     ("Ecco fatto, Mattia.", ["spegni la luce"], [], [], ["ecco fatto"]),
     ("Ti ho appena aperto Google Maps.", ["aprimi maps"], [], [], ["aperto"]),
     ("Va bene. Ho fissato la call per venerdì.", ["fissa la call venerdì"], [], [], ["ho fissato"]),
+    ("Ah, la matematica non è il mio forte. Provvedo subito a inserire le lezioni nei giorni corretti.",
+     ["non tutti i giorni ma solo martedì giovedi e venerdì"], [], [], ["provvedo"]),
+    ("Le metto subito in calendario.", ["segnale"], [], [], ["metto subito"]),
+    ("Se vuoi lo faccio domani, intanto riposa.", ["ok"], [], [], []),
     # --- buoni ---
     ("Parigi a 40 €, Barcellona a 45 € o Budapest a 56 €, tutte con Ryanair.",
      [VOLI, "4 giorni fuori l'italia a metà novembre"], ["esplora_voli"], [VOLI], []),

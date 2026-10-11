@@ -43,6 +43,10 @@ _AZIONE = re.compile(r"\bho (?:appena |già |anche |subito )?(?:aperto|impostato
 # "Fatto." senza chiamare niente. Solo a inizio frase e seguito da punteggiatura, per lasciare stare "di fatto",
 # "il fatto è che"
 _FATTO = re.compile(r"(?:^|[.!?]\s+)((?:ecco\s+)?fatto|eseguito)(?=\s*(?:[.,;:!—–-]|$))", re.I)
+# azioni promesse e non fatte: il 12/10, a "non tutti i giorni ma solo martedì giovedì e venerdì", Jarvis ha
+# risposto "Provvedo subito a inserire le lezioni" senza chiamare niente
+_PROMESSA = re.compile(r"\b(?:provvedo|procedo|rimedio)\b|\b(?:lo |le |li |la )?(?:faccio|inserisco|metto|aggiungo|"
+                       r"sistemo|correggo|creo|segno|sposto|cancello) (?:subito|immediatamente|ora|adesso)\b", re.I)
 # ricerche al passato: possono riferirsi alle domande precedenti ("ho cercato solo su Ryanair" dopo esplora_voli)
 _RICERCA = re.compile(r"\bho (?:cercato|controllato|verificato|letto|trovato|guardato)\b", re.I)
 
@@ -106,7 +110,8 @@ def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risul
             dubbi.append(marchio)
 
     if not strumenti_usati:
-        if (m := _AZIONE.search(risposta)) or (not strumenti_prima and (m := _RICERCA.search(risposta))):
+        if ((m := _AZIONE.search(risposta)) or (m := _PROMESSA.search(risposta))
+                or (not strumenti_prima and (m := _RICERCA.search(risposta)))):
             dubbi.append(f"«{m.group(0)}» senza aver usato strumenti")
         elif m := _FATTO.search(risposta):
             dubbi.append(f"«{m.group(1)}» senza aver usato strumenti")

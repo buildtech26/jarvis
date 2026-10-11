@@ -101,10 +101,14 @@ mostra_alloggi, mai cerca_nel_browser""",
     "calendario": (
         r"impegn|appuntament|calendari|agenda|event|lezion|riunion|incontr|\bsegna\b|sposta|disdic|"
         r"cosa ho (?:oggi|domani|luned|marted|mercoled|gioved|venerd|sabato|domenica)|sono libero|libero (?:oggi|domani)|"
+        r"ogni (?:luned|marted|mercoled|gioved|venerd|sabato|domenica|giorno|settimana)|"
         + _CHE_FARE,
-        ["eventi_calendario", "crea_evento", "sposta_evento", "cancella_evento"],
+        ["eventi_calendario", "crea_evento", "crea_eventi_ripetuti", "sposta_evento", "cancella_evento"],
         """- "cosa devo fare / cosa ho / che c'è <giorno>": eventi_calendario di quel giorno (anche gli allenamenti sono \
 eventi del calendario), mai a memoria
+- impegno che si ripete ("ogni martedì e giovedì alle 20:30 fino a Natale"): crea_eventi_ripetuti, una chiamata per \
+ogni orario diverso (martedì e giovedì 20:30 = una, venerdì 14:30 = un'altra), nella stessa risposta; mai crea_evento \
+dal primo all'ultimo giorno
 - impegni e appuntamenti: eventi_calendario (per "oggi" usa da 00:00 a 23:59 di oggi), crea_evento, sposta_evento; \
 cancella_evento solo dopo un sì esplicito dell'utente. "Ricordami" = promemoria su Telegram; "segna/metti in \
 calendario/appuntamento" = evento""",

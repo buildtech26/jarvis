@@ -85,6 +85,8 @@ CASI = [
     (["cosa devo fare prossima domenoca"], "eventi_calendario"),
     (["che c'è sabato?"], "eventi_calendario"),
     (["ho giocato a tennis"], "segna_allenamento"),
+    (["puoi segnare in calendario fino a natale che ogni martedì alle 20:30 ho lezione con baldini"], "crea_eventi_ripetuti"),
+    (["ogni venerdì alle 14:30 ho lezione"], "crea_eventi_ripetuti"),
     (["cosa mi cucino stasera con ceci e riso?"], "consigli_alimentazione"),
     (["cosa posso mangiare stasera?"], "consigli_alimentazione"),
     (["dammi una ricetta per la cena"], "consigli_alimentazione"),
