@@ -19,6 +19,7 @@ import analista
 import articoli
 import calendario
 import diario
+import dispensa
 import mappe
 import memoria
 import miei_file
@@ -353,7 +354,7 @@ if posta.configurata():
 if calendario.configurato():
     TUTTI += calendario.STRUMENTI + allenamento.STRUMENTI
 if notion.configurato():
-    TUTTI += notion.STRUMENTI
+    TUTTI += notion.STRUMENTI + dispensa.STRUMENTI
 if spese.configurato():
     TUTTI += spese.STRUMENTI
 PER_NOME = {f.__name__: f for f in TUTTI}

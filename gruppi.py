@@ -123,16 +123,27 @@ rispondi seguendo le linee guida e usando SOLO le calorie e le proteine scritte 
 ingredienti economici. Se lì dice che mancano dei dati, dillo e spiega dove scriverli. Mai diete drastiche
 - "cosa mangio stasera", "cosa cucino a pranzo", "dammi una ricetta": consigli_alimentazione con il pasto \
 (stasera = cena), poi proponi UNA ricetta per una persona, anche se mancano i dati (allora con le porzioni di \
-riferimento della nota). La ricetta si prende da Fit with Fun: ricette_fit_with_fun con l'ingrediente principale (se \
-l'utente dice cosa ha in casa usa quello; altrimenti una proteina economica della nota, o il tipo di piatto) e lo \
-stesso pasto, e proponi UNA delle ricette trovate, non una tua: la più economica, scartando quelle con proteine in \
+riferimento della nota). La ricetta si prende da Fit with Fun: ricette_fit_with_fun con l'ingrediente principale \
+(quello che l'utente dice di avere; se no una proteina della riga "In casa" di consigli_alimentazione; se la dispensa \
+è vuota una proteina economica della nota, o il tipo di piatto) e lo stesso pasto, e proponi UNA delle ricette \
+trovate, non una tua: quella che usa più cose che ha in casa, poi la più economica, scartando quelle con proteine in \
 polvere o prodotti di marca se ce n'è una con ingredienti normali; non ripetere un piatto già proposto nella \
-conversazione. Solo se il sito non trova niente di adatto inventala tu con ingredienti economici. Poi passa gli ingredienti a calcola_ricetta con i grammi di OGNI \
+conversazione. Solo se il sito non trova niente di adatto inventala tu con quello che ha in casa. Sale, pepe, spezie e \
+olio si danno per presenti; nella risposta di' quali ingredienti NON sono nella dispensa. Poi passa gli ingredienti a calcola_ricetta con i grammi di OGNI \
 ingrediente per UNA persona (converti cucchiai, scatolette e pezzi in grammi); se il totale è lontano dalle kcal del \
 pasto cambia le dosi e richiamalo. Poi rispondi con: il nome del piatto, gli ingredienti con i grammi in una frase, i \
 passaggi in frasi brevi nell'ordine in cui si fanno, il tempo, e kcal e proteine totali COPIATE dal risultato di \
 calcola_ricetta (mai calcoli tuoi né le kcal del sito); se viene da Fit with Fun dillo e dai il link. È una richiesta \
 esplicita: riporta la ricetta per intero, senza il limite delle tre frasi. Chiudi offrendo un'alternativa in una riga""",
+    ),
+    "dispensa": (
+        r"dispens|\bfrigo|frigorifer|freezer|congelator|in casa|comprat|ricompr|da comprare|ho preso|\bfinit[oaie]\b|"
+        r"\bbuttat|scadut|avanz|cosa (?:ho|c'è) da mangiare",
+        ["dispensa", "aggiorna_dispensa"],
+        """- dispensa (il cibo in casa, su Notion): "cosa ho in frigo", "cosa c'è in casa", "cosa devo ricomprare": \
+dispensa. "Ho comprato...", "ho finito il latte", "ho buttato...", "ho ancora mezzo chilo di pasta": aggiorna_dispensa \
+con l'azione giusta (aggiungi, finito, togli, imposta), stimando tu le quantità che l'utente non dice. Quello che \
+mangia e segna in Cronometer si scala da solo la sera: non toglierlo tu""",
     ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"

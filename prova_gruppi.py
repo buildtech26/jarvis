@@ -94,6 +94,13 @@ CASI = [
     (["quanta pasta posso mangiare a pranzo?"], "consigli_alimentazione"),
     (["cosa compro di proteico che costi poco?"], "consigli_alimentazione"),
     (["ho sempre fame la sera, che faccio?"], "consigli_alimentazione"),
+    (["cosa ho in frigo?"], "dispensa"),
+    (["cosa c'è in casa da mangiare?"], "dispensa"),
+    (["cosa devo ricomprare?"], "dispensa"),
+    (["ho comprato 1 kg di pasta, 6 uova e il latte"], "aggiorna_dispensa"),
+    (["ho finito il latte"], "aggiorna_dispensa"),
+    (["ho buttato lo yogurt scaduto"], "aggiorna_dispensa"),
+    (["cosa ho in frigo?", "e nel freezer?"], "dispensa"),
     # seguiti: la domanda da sola non dice niente, la precedente sì
     (["che treno prendo per Milano domani?", "e dopodomani?"], "cerca_treni"),
     (["quanto ho speso questo mese?", "e il mese scorso?"], "spese_riepilogo"),

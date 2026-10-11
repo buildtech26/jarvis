@@ -19,6 +19,7 @@ from pathlib import Path
 import requests
 
 import cronometer
+import dispensa
 from allenamento import _giorno, _sezione
 
 CARTELLA = Path(os.getenv("JARVIS_ALIMENTAZIONE", Path.home() / "Desktop" / "obsidian" / "Jarvis" / "Alimentazione"))
@@ -313,8 +314,8 @@ def controlla() -> list[str]:
 def consigli_alimentazione(pasto: str = "") -> str:
     """Le linee guida sull'alimentazione dell'utente (vuole perdere grasso, cucina da sé con un budget stretto), le
     sue calorie e proteine al giorno e quelle del pasto (contando quello che ha già segnato oggi, se è in
-    Cronometer), e kcal e proteine degli ingredienti per calcolare le dosi. Da leggere prima di ogni consiglio su cosa
-    e quanto mangiare e prima di proporre una ricetta.
+    Cronometer), kcal e proteine degli ingredienti per calcolare le dosi e, se c'è un pasto, cosa ha in casa (la
+    dispensa). Da leggere prima di ogni consiglio su cosa e quanto mangiare e prima di proporre una ricetta.
 
     Args:
         pasto: 'colazione', 'pranzo', 'cena' (anche per "stasera") o 'spuntino'; vuoto se la domanda non riguarda un pasto
@@ -337,6 +338,11 @@ def consigli_alimentazione(pasto: str = "") -> str:
                 righe.append("Oggi in Cronometer non c'è ancora niente: uso le quote normali dei pasti.")
     if pasto.strip().lower() in QUOTE and isinstance(n, dict):
         righe.append(_per_pasto(pasto.strip().lower(), n, segnato, adesso))
+    if pasto.strip() and dispensa.configurata():
+        try:
+            righe.append(dispensa.in_casa() or "La dispensa su Notion è vuota: non so cosa c'è in casa.")
+        except Exception as e:
+            righe.append(f"Dispensa su Notion non letta ({e}): non so cosa c'è in casa.")
     return " ".join(righe) + f"\n\n{_senza_impostazioni(testo)}"
 
 

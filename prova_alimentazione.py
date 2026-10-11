@@ -10,6 +10,7 @@ from pathlib import Path
 
 import alimentazione
 import cronometer
+import dispensa
 
 
 def main() -> int:
@@ -25,6 +26,7 @@ def main() -> int:
     alimentazione.CARTELLA = cartella / "Alimentazione"
     alimentazione.FILE = cartella / "alimentazione.json"
     cronometer.configurato = lambda: False
+    dispensa.configurata = lambda: False  # la dispensa vera è su Notion: qui non si legge
     oggi = datetime.date(2026, 10, 11)
 
     r = alimentazione.consigli_alimentazione()
