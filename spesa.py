@@ -3,7 +3,7 @@ dispensa, più quello che sta finendo. Su richiesta (consigli_spesa) e il sabato
 
 Le ricette si cercano sul sito con gli ingredienti principali che sono in casa (pollo, tonno, ceci...); per ognuna
 dispensa.mancano dice cosa manca. Contano quelle a cui mancano al massimo 2 ingredienti, senza proteine in polvere,
-prodotti di marca o ingredienti cari da comprare (alimentazione.CARI: budget medio-basso); gli acquisti si scelgono uno alla volta, ogni volta quello che completa più ricette.
+prodotti di marca o ingredienti cari da comprare (CARI: budget medio-basso); gli acquisti si scelgono uno alla volta, ogni volta quello che completa più ricette.
 """
 import datetime
 import json
@@ -26,6 +26,13 @@ CERCHE = ["pollo", "tonno", "ceci", "lenticchie", "fagioli", "uova", "pasta", "r
           "speck", "piadina"]
 # ricette scartate se manca uno di questi: proteine in polvere e prodotti di marca, non roba da supermercato
 SCARTA = re.compile(r"protein|yummy|nutella|pocket coffee|choco|biscuit|dessert proteic|philadelphia protein", re.I)
+# ingredienti cari, da non far comprare (budget medio-basso, scelta dell'utente del 12/10; le ricette con questi
+# Jarvis le propone lo stesso): i prezzi veri non ci sono, l'elenco viene dai nomi delle ricette di Fit with Fun.
+# Burro di arachidi, skyr e yogurt greco vanno bene (confermato dall'utente)
+CARI = re.compile(r"salmon|avocad|guacamol|gamber|pistacch|mandorl|\bnocciol|anacard|pinol|macadamia|quinoa|"
+                  r"semi di (?:chia|canapa)|\bchia\b|goji|mirtill|lampon|sciroppo d'(?:acero|agave)|\bcocco\b|"
+                  r"porcin|zafferan|tartufo|seitan|tofu|tempeh|fumo liquido|carrub|bresaola|prosciutto crudo|"
+                  r"pesce spada|branzin|orata|filetto di manzo|tonno fresco", re.I)
 _errori = {"pausa": 0.0, "volte": 0}
 
 
@@ -63,7 +70,7 @@ def _proposta(voci: list[dict]) -> dict:
         fuori = alimentazione._non_in_casa(alimentazione._ingredienti(r), voci) or []
         if not fuori:
             pronte.append(r)
-        elif len(fuori) <= MAX_MANCANTI and not any(SCARTA.search(f) or alimentazione.CARI.search(f) for f in fuori):
+        elif len(fuori) <= MAX_MANCANTI and not any(SCARTA.search(f) or CARI.search(f) for f in fuori):
             vicine.append((r, fuori))
     # ogni ingrediente mancante diventa una chiave; con le alternative ("skyr o yogurt greco") vince la più comune
     conta = Counter(_chiave(a) for _, fuori in vicine for f in fuori for a in dispensa._alternative(f))
