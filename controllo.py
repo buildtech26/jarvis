@@ -26,6 +26,7 @@ import mappe
 import openfood
 import posta
 import quota
+import riserva
 import ritardi
 import spese
 import tper
@@ -200,6 +201,8 @@ def prove() -> list[tuple[str, str, object]]:
     """(nome, a cosa serve, funzione) dei servizi configurati in questo .env."""
     elenco = [(f"Gemini {m}", "il cervello e la voce" + (" (modello principale)" if i == 0 else " (riserva)"),
                _gemini(m)) for i, m in enumerate(quota.MODELLI)]
+    if riserva.configurata():
+        elenco.append((f"Riserva Mistral {riserva.MODELLO}", "rispondere quando Gemini non risponde", riserva.prova))
     elenco += [
         ("Ricerca web (DuckDuckGo)", "cerca_web, notizie e le ricerche salvate", _ricerca_web),
         ("Meteo (Open-Meteo)", "il meteo", _meteo),

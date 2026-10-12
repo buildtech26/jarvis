@@ -6,17 +6,20 @@ al cervello, insieme a prova_gruppi.py e prova_verifica.py.
 Il 10/10 mancava "from google.genai import types" in _ciclo e falliva ogni domanda con strumenti, mentre quelle
 senza strumenti andavano: per questo il primo caso chiama sempre uno strumento.
 """
+import json
 import sys
 import tempfile
 import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import requests
 from google.genai import errors, types
 
 import brain
 import memoria
 import quota
+import riserva
 import tools
 import verifica
 
@@ -127,7 +130,45 @@ def main() -> int:
     atteso(risposta == "Corpo libero A.\n1. Riscaldamento\n   - 10 squat", f"integrale: {risposta!r}", righe)
     atteso(any("[integrale]" in r for r in righe), "integrale: riga nel log", righe)
 
-    print(f"7 casi, errori: {len(errori)}")
+    # 8. nessun Gemini risponde: la riserva Mistral, senza calendario, senza markdown e con l'etichetta
+    def chiamata_mistral(nome, args):
+        return {"content": "", "tool_calls": [{"id": f"c{nome[:8]}", "type": "function",
+                                               "function": {"name": nome, "arguments": json.dumps(args)}}]}
+
+    giu = [errors.ServerError(503, {"error": {"code": 503, "message": "overloaded", "status": "UNAVAILABLE"}})] * 3
+    mistral = [chiamata_mistral("crea_evento", {"titolo": "x", "inizio": "2026-10-13 10:00"}),
+               chiamata_mistral("prova_finta", {}),
+               {"content": "Vale **42**.\n- e il calendario è spento ([qui](https://x.it/a))"}]
+    offerti = []
+
+    def chiama_finto(messaggi, strumenti):
+        offerti.append({s["function"]["name"] for s in strumenti or []})
+        return mistral.pop(0)
+
+    originali = riserva.configurata, riserva._chiama, tools.PER_NOME.get("crea_evento")
+    riserva.configurata, riserva._chiama = (lambda: True), chiama_finto
+    eseguiti = []
+    tools.PER_NOME["crea_evento"] = lambda **k: eseguiti.append(k) or "Creato"
+    try:
+        risposta, g, righe = _prova("quanto vale il numero di prova? e segnamelo in calendario", giu)
+    finally:
+        riserva.configurata, riserva._chiama = originali[0], originali[1]
+        tools.PER_NOME["crea_evento"] = originali[2]
+    atteso(risposta == f"Vale 42.\ne il calendario è spento (https://x.it/a) {riserva.ETICHETTA}", f"riserva: risposta {risposta!r}", righe)
+    atteso(not eseguiti and brain._usati == ["prova_finta"], f"riserva: crea_evento eseguito {eseguiti}", righe)
+    atteso(offerti and not offerti[0] & riserva.ESCLUSI, f"riserva: offerti anche {offerti[0] & riserva.ESCLUSI}", righe)
+    atteso(any("[fine]" in r and riserva.MODELLO in r and "×3" in r for r in righe), "riserva: riga [fine]", righe)
+
+    # 9. nemmeno la riserva risponde: lo dice
+    riserva.configurata = lambda: True
+    riserva._chiama = lambda m, s: (_ for _ in ()).throw(requests.ConnectionError("rete giù"))
+    try:
+        risposta, g, righe = _prova("dimmi una cosa", giu)
+    finally:
+        riserva.configurata, riserva._chiama = originali[0], originali[1]
+    atteso("nemmeno il modello di riserva" in risposta, f"riserva giù: {risposta!r}", righe)
+
+    print(f"9 casi, errori: {len(errori)}")
     return 1 if errori else 0
 
 

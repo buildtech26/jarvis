@@ -14,6 +14,7 @@ import numpy as np
 import sounddevice as sd
 
 import quota
+import riserva
 
 FREQ = 16000
 BLOCCO = 1280  # 80 ms, il formato che openwakeword si aspetta
@@ -79,6 +80,14 @@ def trascrivi(audio) -> str:
             print(f"[trascrizione] {modello} non disponibile: {str(e)[:80]}")
             if tipo != "minuto":
                 scartati.add(modello)
+    if riserva.configurata():  # nessun Gemini: voxtral di Mistral
+        try:
+            testo = riserva.trascrivi(dati, "audio" + {"audio/wav": ".wav", "audio/mp3": ".mp3", "audio/mp4": ".m4a"}
+                                      .get(mime, ".ogg"))
+            print("[trascrizione] fatta con la riserva Mistral")
+            return testo
+        except Exception as e:
+            print(f"[trascrizione] anche la riserva Mistral non risponde: {str(e)[:80]}")
     return ""
 
 

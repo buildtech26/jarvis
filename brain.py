@@ -1,4 +1,5 @@
-"""Il cervello: Gemini, con un secondo modello Gemini di riserva.
+"""Il cervello: Gemini, con gli altri modelli Gemini a rotazione (quota.py) e, se non risponde nessuno, Mistral
+(riserva.py: senza calendario, con l'etichetta "modello di riserva").
 
 Fino al 2026-10-03 c'era anche Ollama locale (qwen2.5 3B) come ultima riserva: tolto perché su questo PC
 impiegava fino a 100 s e rispondeva male, e il modello occupava 1,75 GB.
@@ -10,6 +11,7 @@ import threading
 import time
 import traceback
 
+import requests
 from dotenv import load_dotenv
 
 import allenamento
@@ -20,6 +22,7 @@ import notion
 import parcheggio
 import promemoria
 import quota
+import riserva
 import ritardi
 import sapere
 import siti
@@ -218,8 +221,13 @@ class Jarvis:
                     log(f"  [gemini] {modello} non disponibile{' (limite al ' + tipo + ')' if tipo else ''}: {errore[:80]}")
                     if tipo != "minuto":
                         scartati.add(modello)
+        riserva_provata = False
+        if risposta is None and riserva.configurata():
+            riserva_provata = True
+            risposta = self._chiedi_riserva(log, falliti)
         if risposta is None:
-            risposta = self._spiega_errore(errore)
+            risposta = self._spiega_errore(errore) + (" Non risponde nemmeno il modello di riserva." if riserva_provata
+                                                      else "")
 
         m = RICORDA.match(testo.strip())
         if m and "ricorda" not in _usati and "ricerca_e_salva" not in _usati:
@@ -258,12 +266,48 @@ class Jarvis:
             # giusto era fuori dal gruppo base. Si riprova una volta con tutti
             log(f"  [gruppi] risposta di rinuncia con il solo gruppo base, riprovo con tutti: {risposta[:60]!r}")
             risposta = self._giro_gemini(modello, gruppi.TUTTI, log)
+        return self._integrale(risposta, log)
+
+    def _integrale(self, risposta: str, log) -> str:
+        """Con i soli strumenti di INTEGRALI la risposta è il loro risultato, non il riassunto del modello."""
         esiti = [r.split(": ", 1)[1] for r in dict.fromkeys(_risultati)]
         # un errore dello strumento (argomenti sbagliati) invece lo spiega il modello
         if _usati and set(_usati) <= INTEGRALI and not any(e.startswith("Errore:") for e in esiti):
             log(f"  [integrale] risposta = risultato di {', '.join(dict.fromkeys(_usati))}")
-            risposta = "\n\n".join(esiti)
+            return "\n\n".join(esiti)
         return risposta
+
+    def _chiedi_riserva(self, log, falliti: list[str]) -> str | None:
+        """Nessun modello Gemini risponde: Mistral, senza il gruppo calendario e senza gli strumenti di
+        riserva.ESCLUSI. Un solo tentativo: se la verifica trova dati senza fonte, l'avviso va subito nella risposta.
+        None se anche Mistral non risponde."""
+        domande = [m["content"] for m in self.storia if m["role"] == "user"]
+        scelti = [g for g in gruppi.per_conversazione(domande) if g != "calendario"]
+        funzioni, regole = gruppi.strumenti_e_regole(scelti, tools.PER_NOME)
+        log(f"  [riserva] {riserva.MODELLO}: {', '.join(scelti)}")
+        try:
+            risposta, richieste = riserva.rispondi(_sistema(regole, [r[:2500] for r in self.recenti]),
+                                                   self.storia[-MAX_STORIA:], funzioni,
+                                                   lambda nome, args: _esegui(nome, args, log), MAX_PASSI)
+        except requests.RequestException as e:
+            _chiamate[riserva.MODELLO] = _chiamate.get(riserva.MODELLO, 0) + 1
+            falliti.append(f"{riserva.MODELLO}: {str(e)[:40]}")
+            log(f"  [riserva] non risponde: {str(e)[:120]}")
+            return None
+        except Exception as e:  # un errore nel codice della riserva, non di Mistral
+            log("  [errore interno]\n" + traceback.format_exc().rstrip())
+            falliti.append(f"{riserva.MODELLO}: errore interno")
+            return (f"Gemini non risponde e il modello di riserva ha un guasto nel mio codice ({type(e).__name__}: "
+                    f"{e}), signore: i dettagli sono in jarvis.log.")
+        _chiamate[riserva.MODELLO] = _chiamate.get(riserva.MODELLO, 0) + richieste
+        risposta = self._integrale(riserva.senza_markdown(risposta), log)
+        dubbi = verifica.controlla(risposta, self._fonti(), _usati, _risultati, bool(self.recenti))
+        verifica.registra(self.storia[-1]["content"], list(_usati), list(_risultati), self.recenti, [(risposta, dubbi)],
+                          modello=riserva.MODELLO)
+        if dubbi:
+            log(f"  [verifica] dati senza fonte (riserva): {'; '.join(dubbi)}, aggiungo l'avviso")
+            risposta = verifica.con_avviso(risposta, dubbi)
+        return f"{risposta.rstrip()} {riserva.ETICHETTA}" if risposta.strip() else None
 
     def _giro_gemini(self, modello: str, scelti: list[str], log) -> str:
         from google.genai import types

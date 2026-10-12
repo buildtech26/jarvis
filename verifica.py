@@ -127,12 +127,14 @@ def correzione(dubbi: list[str]) -> str:
 
 
 def registra(domanda: str, strumenti: list[str], risultati: list[str], precedenti: list[str],
-             tentativi: list[tuple[str, list[str]]]):
+             tentativi: list[tuple[str, list[str]]], modello: str = ""):
     """Aggiunge una riga a verifica.jsonl. precedenti: risultati delle ultime domande (per i seguiti);
-    tentativi: (risposta, dubbi) del primo ed eventuale secondo giro."""
+    tentativi: (risposta, dubbi) del primo ed eventuale secondo giro; modello: solo per la riserva (Mistral)."""
     riga = {"quando": f"{datetime.datetime.now():%Y-%m-%d %H:%M}", "domanda": domanda, "strumenti": strumenti,
             "risultati": [r[:1500] for r in risultati], "precedenti": [r[:1500] for r in precedenti],
             "tentativi": [{"risposta": r, "dubbi": d} for r, d in tentativi]}
+    if modello:
+        riga["modello"] = modello
     try:
         with _lock, FILE.open("a", encoding="utf-8") as f:
             f.write(json.dumps(riga, ensure_ascii=False) + "\n")

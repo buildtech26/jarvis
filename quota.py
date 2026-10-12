@@ -112,6 +112,10 @@ def consumi() -> str:
         totale = sum(v for k, v in c.items() if not k.startswith("errori"))
         dettagli = ", ".join(f"{k} {v}" for k, v in sorted(c.items()))
         righe.append(f"- {modello}: {totale} ({dettagli})")
+    for modello, c in sorted(dati.get(oggi, {}).items()):
+        if modello not in MODELLI:  # la riserva Mistral (riserva.py): compare solo nei giorni in cui è servita
+            dettagli = ", ".join(f"{k} {v}" for k, v in sorted(c.items()))
+            righe.append(f"- {modello} (riserva Mistral): {dettagli}")
     giorni = sorted(dati)[-7:]
     if len(giorni) > 1:
         righe.append("Ultimi giorni: " + ", ".join(

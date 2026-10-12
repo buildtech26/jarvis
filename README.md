@@ -1,8 +1,11 @@
 # Jarvis
 
 Assistente personale: finestra di chat (Alt+J), voce sul PC ("Hey Jarvis") e bot Telegram. Cervello: Gemini
-(piano gratuito, `GEMINI_API_KEY` nel `.env`), con un secondo modello Gemini di riserva. Senza Gemini Jarvis
-spiega l'errore invece di rispondere: Ollama locale è stato tolto il 2026-10-03 (lento e impreciso su questo PC).
+(piano gratuito, `GEMINI_API_KEY` nel `.env`), con tre modelli Gemini a rotazione. Se non risponde nessuno, passa
+alla riserva Mistral (`riserva.py`, `MISTRAL_API_KEY`, account gratuito): ministral-14b per le risposte e voxtral per
+i vocali. La riserva risponde con l'etichetta "(modello di riserva)" e non tocca calendario, promemoria e
+pianificazione degli allenamenti, perché sbaglia i giorni della settimana. Se non risponde nemmeno lei, Jarvis spiega
+l'errore. Ollama locale è stato tolto il 2026-10-03 (lento e impreciso su questo PC).
 
 ## Avvio
 
