@@ -64,14 +64,14 @@
 <div class="pagina">
 
 <header>
-  <div class="occhiello">Assistente personale · aggiornato al 4 ottobre 2026</div>
+  <div class="occhiello">Assistente personale · aggiornato al 12 ottobre 2026</div>
   <h1>Cosa sa fare Jarvis</h1>
-  <p class="sotto">Jarvis gira sul PC e risponde a voce («Hey Jarvis»), dalla sua finestra e su Telegram. Il cervello è Gemini (3.5 Flash-Lite, con 3.1 Flash-Lite e 3.6 Flash di riserva): capisce la richiesta e sceglie da solo lo strumento giusto. Le frasi negli esempi sono indicative, si può parlare liberamente.</p>
+  <p class="sotto">Jarvis gira sul PC e risponde a voce («Hey Jarvis»), dalla sua finestra e su Telegram. Il cervello è Gemini (3.5 Flash-Lite, con 3.1 Flash-Lite e 3.6 Flash di riserva): capisce la richiesta e sceglie da solo lo strumento giusto. Oltre a rispondere fa da personal trainer, da nutrizionista e tiene la dispensa. Le frasi negli esempi sono indicative, si può parlare liberamente.</p>
   <div class="numeri">
-    <div class="numero"><b>55</b><span>strumenti a disposizione di Gemini</span></div>
-    <div class="numero"><b>14</b><span>comandi diretti senza Gemini</span></div>
-    <div class="numero"><b>6</b><span>comandi Telegram</span></div>
-    <div class="numero"><b>3</b><span>modi d'uso: voce, finestra, Telegram</span></div>
+    <div class="numero"><b>79</b><span>strumenti a disposizione di Gemini</span></div>
+    <div class="numero"><b>20</b><span>comandi diretti senza Gemini</span></div>
+    <div class="numero"><b>7</b><span>comandi Telegram</span></div>
+    <div class="numero"><b>6</b><span>messaggi automatici su Telegram</span></div>
   </div>
 </header>
 
@@ -79,7 +79,7 @@
 <div class="griglia">
   <div class="scheda"><h3>Voce sul PC</h3><p>Parola di attivazione «Hey Jarvis» (openwakeword), trascrizione con Gemini e risposta parlata con la voce Diego (it-IT).</p></div>
   <div class="scheda"><h3>Finestra sul desktop</h3><p>Interfaccia grafica con la chat, aperta dall'icona. Jarvis parte da solo all'accesso a Windows.</p></div>
-  <div class="scheda"><h3>Bot Telegram</h3><p>Messaggi di testo e vocali, foto, documenti e posizione. Risponde solo al tuo account: gli altri ricevono «Non ti conosco».</p></div>
+  <div class="scheda"><h3>Bot Telegram</h3><p>Messaggi di testo e vocali, foto, documenti, posizione e pulsanti (✅/❌ per gli allenamenti, la lista della spesa da scontrino). Risponde solo al tuo account: gli altri ricevono «Non ti conosco».</p></div>
 </div>
 
 <h2><span class="ico">🌐</span>Web e informazioni</h2>
@@ -89,12 +89,13 @@
   <div class="scheda"><h3>Notizie</h3><p>Ultimi titoli, in generale o su un argomento.</p><span class="es">ultime notizie sulla Formula 1</span></div>
   <div class="scheda"><h3>Meteo <span class="tag diretto">diretto</span></h3><p>Tempo attuale e previsioni di oggi e domani per qualunque città (Open-Meteo).</p><span class="es">che tempo fa domani a Bologna</span></div>
   <div class="scheda"><h3>Leggi una pagina</h3><p>Scarica un sito o un link e lo riassume o risponde su quello.</p><span class="es">riassumimi questo articolo: …</span></div>
-  <div class="scheda"><h3>Apri un sito</h3><p>Apre un indirizzo nel browser.</p><span class="es">apri github.com</span></div>
+  <div class="scheda"><h3>Apri un sito</h3><p>Apre un indirizzo nel browser, anche solo dal nome di un sito noto.</p><span class="es">apri github</span></div>
 </div>
 
 <h2><span class="ico">✈️</span>Viaggi e spostamenti</h2>
 <div class="griglia">
   <div class="scheda"><h3>Voli</h3><p>Prezzi e orari di tutte le compagnie (Google Flights tramite SerpApi, Ryanair di riserva). Può aprire Google Flights o Ryanair già compilati.</p><span class="es">quanto costa un volo Bologna–Barcellona il 15 novembre?</span></div>
+  <div class="scheda"><h3>Mete economiche</h3><p>Quando la destinazione non è scelta: cerca le mete più economiche per il periodo e le notti dette, e ripete i criteri usati.</p><span class="es">3 giorni da qualche parte fuori dall'Italia a novembre</span></div>
   <div class="scheda"><h3>Treni Trenitalia</h3><p>Orari reali e prezzi di Frecciarossa, Intercity e regionali; apre il sito Trenitalia già compilato.</p><span class="es">treni da Bologna a Milano domani mattina</span></div>
   <div class="scheda"><h3>Ritardi in tempo reale</h3><p>Ritardo, posizione e binario di un treno di oggi, Italo compreso (ViaggiaTreno).</p><span class="es">il Frecciarossa 9531 è in ritardo?</span></div>
   <div class="scheda"><h3>Segui un treno <span class="tag diretto">diretto</span></h3><p>Lo tiene d'occhio e avvisa su Telegram di ritardi, cancellazioni e binario. Si può vedere la lista e smettere di seguirlo.</p><span class="es">seguimi il regionale 17521</span></div>
@@ -108,14 +109,57 @@
 <div class="griglia">
   <div class="scheda"><h3>Leggere le mail</h3><p>Elenca le ultime mail di Gmail, apre il testo completo e legge gli allegati (PDF, immagini, file di testo).</p><span class="es">cosa c'è nella fattura che mi è arrivata?</span></div>
   <div class="scheda"><h3>Archiviare e scrivere mail</h3><p>Archivia senza cancellare, prepara risposte e mail nuove come bozze. L'invio avviene <b>solo</b> con <code>/invia</code> su Telegram, mai da solo.</p><span class="es">rispondi al prof che va bene giovedì</span></div>
-  <div class="scheda"><h3>Calendario Google <span class="tag diretto">diretto</span></h3><p>Elenca gli impegni (comprese le lezioni UniBo), crea, sposta e cancella eventi. Per cancellare chiede sempre conferma.</p><span class="es">che impegni ho domani?</span></div>
+  <div class="scheda"><h3>Calendario Google <span class="tag diretto">diretto</span></h3><p>Elenca gli impegni (comprese le lezioni UniBo), crea, sposta e cancella eventi e avvisa se un evento si sovrappone a un altro. Per cancellare chiede sempre conferma.</p><span class="es">che impegni ho domani?</span></div>
+  <div class="scheda"><h3>Eventi che si ripetono</h3><p>Crea un evento per ogni giorno indicato fra due date, anche con orari diversi per giorni diversi.</p><span class="es">ogni martedì e giovedì alle 20:30 fino a Natale ho lezione</span></div>
   <div class="scheda"><h3>Promemoria <span class="tag diretto">diretto</span></h3><p>Crea promemoria che arrivano su Telegram all'ora giusta; li elenca e li cancella.</p><span class="es">ricordami alle 18 di chiamare la mamma</span></div>
   <div class="scheda"><h3>Attività su Notion <span class="tag diretto">diretto</span></h3><p>Database «Attività» (to-do, esami, scadenze): elenca per scadenza, aggiunge e segna come fatte.</p><span class="es">cosa devo fare questa settimana?</span></div>
 </div>
 
+<h2><span class="ico">🏃</span>Allenamento (personal trainer)</h2>
+<div class="griglia">
+  <div class="scheda"><h3>La scheda</h3><p>Nota Obsidian <code>Jarvis\Allenamento</code>: niente palestra, corpo libero A e B in casa, corsa e tennis. La fase (1-3) sale con le sedute fatte, non con le settimane.</p><span class="es">fammi vedere la scheda</span></div>
+  <div class="scheda"><h3>Settimana in calendario</h3><p>La domenica sera mette in Google Calendar le sedute della settimana dopo, nei buchi fra le lezioni: corpo libero prima di sera, corsa prima di mattina. Il tennis va a orario fisso.</p><span class="es">organizzami gli allenamenti della settimana</span></div>
+  <div class="scheda"><h3>La seduta del giorno <span class="tag diretto">diretto</span></h3><p>Riscaldamento ed esercizi per intero, con serie e riposi del livello giusto, presi da darebee.com (o dalla scheda), con il link.</p><span class="es">che allenamento ho domani?</span></div>
+  <div class="scheda"><h3>Fatto o saltato <span class="tag tg">Telegram</span></h3><p>Mezz'ora dopo la fine di ogni seduta chiede ✅/❌. Se l'hai saltata propone un recupero nei 3 giorni dopo. Si può anche dire a parole.</p><span class="es">ho giocato a tennis</span></div>
+  <div class="scheda"><h3>Come va la settimana</h3><p>Sedute in programma, fatte e saltate, e la fase attuale. Se sposti un allenamento in calendario, Jarvis lo segue.</p><span class="es">quanti allenamenti ho fatto questa settimana?</span></div>
+</div>
+
+<h2><span class="ico">🍽️</span>Alimentazione</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Calorie e proteine</h3><p>Linee guida nella nota Obsidian <code>Jarvis\Alimentazione</code>: obiettivo perdere grasso, calorie dal metabolismo a riposo meno un deficit. Dice quanto mangiare a ogni pasto, contando quello già segnato oggi.</p><span class="es">quanta pasta posso mangiare a pranzo?</span></div>
+  <div class="scheda"><h3>Ricette da Fit with Fun</h3><p>Propone una ricetta di fitwithfun.it con il link, scegliendo quella che usa più cose che hai in casa, e dice sempre quali ingredienti mancano. Ingredienti cari compresi: se non ti va, chiedine un'altra.</p><span class="es">cosa mangio stasera?</span></div>
+  <div class="scheda"><h3>Kcal della ricetta</h3><p>Le dosi per una persona e il totale di kcal e proteine: dalla tabella della nota se l'ingrediente c'è con lo stesso nome, se no da Open Food Facts (la mediana dei prodotti con quel nome).</p><span class="es">quante calorie ha un piatto di pasta e ceci?</span></div>
+  <div class="scheda"><h3>Cosa ho mangiato</h3><p>Legge Cronometer: kcal, proteine, carboidrati e grassi del giorno rispetto agli obiettivi, e i cibi di ogni pasto. Con l'account gratuito le kcal ci sono solo per il totale del giorno.</p><span class="es">quante proteine mi mancano oggi?</span></div>
+</div>
+
+<h2><span class="ico">🛒</span>Dispensa e spesa</h2>
+<div class="griglia">
+  <div class="scheda"><h3>La dispensa</h3><p>Database Notion «Dispensa»: ogni cibo con quantità indicativa e posto (dispensa, frigo, freezer), e cosa sta finendo o è finito.</p><span class="es">cosa ho in frigo?</span></div>
+  <div class="scheda"><h3>Aggiornarla a parole</h3><p>Aggiunge, toglie, segna finito o corregge. Se non dici la quantità la stima.</p><span class="es">ho comprato 1 kg di pasta e 6 uova</span></div>
+  <div class="scheda"><h3>Scontrino e codici a barre <span class="tag tg">Telegram</span></h3><p>La foto di uno scontrino o dei codici a barre diventa una lista con i pulsanti: scegli i prodotti e premi Aggiungi.</p><span class="es">[foto dello scontrino]</span></div>
+  <div class="scheda"><h3>Si scala da sola</h3><p>Quello che segni in Cronometer viene tolto dalla dispensa alle 21:31, e alle 10 del giorno dopo per i pasti segnati tardi.</p></div>
+  <div class="scheda"><h3>Consigli per la spesa</h3><p>Le poche cose da comprare che sbloccano più ricette con quello che hai già, senza ingredienti cari, più cosa sta finendo. Arrivano anche il sabato alle 9 su Telegram.</p><span class="es">cosa compro al supermercato?</span></div>
+</div>
+
+<h2><span class="ico">❤️</span>Salute</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Dati di Apple Salute</h3><p>Passi, distanza, calorie bruciate, battito (medio, minimo, massimo, a riposo), HRV, ossigeno, respirazione, peso, sonno con orari e fasi, allenamenti dell'orologio. Un giorno o più giorni con le medie.</p><span class="es">come ho dormito stanotte?</span></div>
+  <div class="scheda"><h3>Come arrivano i dati</h3><p>Un Comando Rapido sull'iPhone li scrive nel database Notion «Salute» quando chiudi un'app (Salute si legge solo a telefono sbloccato). <b>Da completare:</b> il Comando va ancora costruito sull'iPhone.</p></div>
+</div>
+
+<h2><span class="ico">💶</span>Soldi e investimenti</h2>
+<div class="griglia">
+  <div class="scheda"><h3>Spese <span class="tag diretto">diretto</span></h3><p>Dalla webapp Spese Live (conto Revolut): speso oggi, nella settimana e nel mese, per categoria, budget rimasto, saldo e patrimonio. Solo lettura.</p><span class="es">quanto ho speso questo mese?</span></div>
+  <div class="scheda"><h3>Movimenti</h3><p>I singoli pagamenti fra due date, per esercente o categoria.</p><span class="es">quanto ho speso da Esselunga a settembre?</span></div>
+  <div class="scheda"><h3>Analisi di un'azienda o di un ETF</h3><p>Analisi fondamentale con i dati di Yahoo Finance (bilanci, indici, valutazione, rischi), salvata in Obsidian.</p><span class="es">analizza Nvidia</span></div>
+</div>
+
 <h2><span class="ico">📚</span>Studio, appunti e memoria</h2>
 <div class="griglia">
-  <div class="scheda"><h3>Appunti e guide su Notion</h3><p>Cerca nei titoli e dentro il testo delle 93 pagine di appunti e legge le pagine intere. Le formule arrivano in LaTeX.</p><span class="es">cosa dicono i miei appunti sui rotismi epicicloidali?</span></div>
+  <div class="scheda"><h3>Appunti e guide su Notion</h3><p>Cerca nei titoli e dentro il testo delle pagine di appunti e legge le pagine intere. Le formule arrivano in LaTeX.</p><span class="es">cosa dicono i miei appunti sui rotismi epicicloidali?</span></div>
+  <div class="scheda"><h3>Ricerche salvate</h3><p>Fa una ricerca approfondita sul web e la salva come nota in Obsidian, solo se chiedi di salvarla.</p><span class="es">fai una ricerca sull'ETF SWDA e salvala</span></div>
+  <div class="scheda"><h3>Cosa sai già</h3><p>Prima di cercare sul web guarda nelle ricerche salvate e nella wiki di Obsidian, e dice da quale nota e di che data viene la risposta.</p><span class="es">cosa sai dei pannelli solari?</span></div>
+  <div class="scheda"><h3>File di testo</h3><p>Crea liste, appunti e bozze in una cartella sua; li allunga, li rilegge, li elenca e li sposta nel Cestino.</p><span class="es">aggiungi il pane alla lista della spesa</span></div>
   <div class="scheda"><h3>Copia degli appunti in Obsidian</h3><p>Ogni 3 ore aggiorna una copia di sola lettura degli appunti in <code>obsidian\Jarvis\Notion\</code>, con wikilink, tabelle e formule convertiti.</p></div>
   <div class="scheda"><h3>Articoli salvati</h3><p>Elenca, cerca e legge gli articoli salvati col Web Clipper, per riassumerli o rispondere su di essi.</p><span class="es">cosa avevo salvato sull'intelligenza artificiale?</span></div>
   <div class="scheda"><h3>Memoria permanente</h3><p>Ricorda fatti stabili su di te (preferenze, persone, abitudini) nella nota Obsidian <code>Memoria.md</code>, e li dimentica su richiesta.</p><span class="es">ricordati che il mio indirizzo di casa è …</span></div>
@@ -142,6 +186,8 @@
   <tr><td>Parcheggio</td><td>dove ho parcheggiato · dov'è la macchina · dove sta la macchina</td></tr>
   <tr><td>Attività Notion</td><td>cosa devo fare · le mie attività · cose da fare · to do (anche «oggi», «questa settimana»)</td></tr>
   <tr><td>Impegni</td><td>cosa ho oggi/domani · che impegni ho domani · agenda di oggi</td></tr>
+  <tr><td>Allenamento</td><td>che allenamento ho oggi/domani/sabato · cosa devo fare domani di allenamento · la scheda di lunedì</td></tr>
+  <tr><td>Spese</td><td>quanto ho speso oggi · quanto ho speso questo mese · quanto ho sul conto · saldo</td></tr>
   <tr><td>Meteo</td><td>che tempo fa · meteo · previsioni (oggi/domani, a una città; Bologna se non la dici)</td></tr>
   <tr><td>Promemoria</td><td>i miei promemoria · elenca i promemoria</td></tr>
   <tr><td>Treni seguiti</td><td>che treni stai seguendo</td></tr>
@@ -159,6 +205,8 @@
   <tr><td><code>/consumi</code></td><td>Richieste Gemini di oggi e ricerche SerpApi rimaste nel mese, senza spendere una richiesta</td></tr>
   <tr><td><code>/treni</code></td><td>Treni che Jarvis sta seguendo</td></tr>
   <tr><td><code>/schermo</code></td><td>Screenshot del PC</td></tr>
+  <tr><td><code>/riavvia</code></td><td>Riavvia Jarvis dopo aver fatto le prove, e avvisa quando è di nuovo operativo</td></tr>
+  <tr><td>📷 foto</td><td>Scontrino o codici a barre: lista per la dispensa. Altre foto: lette e salvate in Obsidian</td></tr>
   <tr><td><code>/invia N</code></td><td>Invia la bozza di mail numero N: è l'unico modo in cui parte una mail</td></tr>
   <tr><td>📍 posizione</td><td>Salva il parcheggio</td></tr>
   <tr><td>🎙️ vocale</td><td>Trascrive con Gemini e risponde come a un messaggio scritto</td></tr>
@@ -166,14 +214,20 @@
 
 <h2><span class="ico">⚙️</span>In background</h2>
 <div class="griglia">
-  <div class="scheda"><h3>Avvisi automatici</h3><p>Ogni 20 secondi controlla promemoria scaduti e treni seguiti, e scrive su Telegram.</p></div>
+  <div class="scheda"><h3>Promemoria e treni</h3><p>Ogni 20 secondi controlla promemoria scaduti e treni seguiti, e scrive su Telegram.</p></div>
+  <div class="scheda"><h3>Allenamenti <span class="tag tg">Telegram</span></h3><p>La domenica alle 18 pianifica la settimana dopo; dopo ogni seduta chiede ✅/❌; ogni mezz'ora rilegge il calendario per seguire gli spostamenti.</p></div>
+  <div class="scheda"><h3>Riepilogo della sera <span class="tag tg">Telegram</span></h3><p>Alle 21:30 kcal e proteine del giorno da Cronometer rispetto agli obiettivi; la domenica anche la media della settimana. Alle 21:31 i pasti escono dalla dispensa.</p></div>
+  <div class="scheda"><h3>Spesa del sabato <span class="tag tg">Telegram</span></h3><p>Il sabato alle 9 i consigli per la spesa con la dispensa del momento.</p></div>
+  <div class="scheda"><h3>Copia degli appunti</h3><p>Ogni 3 ore aggiorna in Obsidian la copia di sola lettura delle pagine Notion.</p></div>
   <div class="scheda"><h3>Rotazione dei modelli</h3><p>Se Gemini risponde 429 (limite al minuto), mette in pausa quel modello e passa al successivo: 3.5 Flash-Lite → 3.1 Flash-Lite → 3.6 Flash. Se nessuno risponde, spiega l'errore.</p></div>
+  <div class="scheda"><h3>Strumenti per argomento</h3><p>A Gemini manda solo i gruppi di strumenti che servono per la domanda (in media 17 su 79): risponde meglio e consuma meno. Se con pochi strumenti dice «non posso», riprova con tutti.</p></div>
+  <div class="scheda"><h3>Controllo dei dati inventati</h3><p>Prezzi, orari, numeri di treno, compagnie e azioni promesse che non vengono da nessuno strumento: Gemini deve correggersi, se no la risposta arriva con un avviso.</p></div>
   <div class="scheda"><h3>Consumi</h3><p>Conta le richieste Gemini per modello e legge le ricerche SerpApi rimaste (250 al mese per voli e alloggi).</p></div>
 </div>
 
-<div class="nota">Non fa (scelte fatte): non invia mail senza <code>/invia</code>, non modifica le pagine Notion né aggiunge note veloci, non salva i documenti ricevuti nel vault, non apre Airbnb o Booking di sua iniziativa. Riepilogo del mattino, avviso «esci adesso», allarme prezzo voli e controllo del PC a distanza sono stati scartati, almeno per ora.</div>
+<div class="nota">Non fa (scelte fatte): non invia mail senza <code>/invia</code>, non modifica le pagine di appunti su Notion (scrive solo nei database Attività e Dispensa), non salva i documenti ricevuti nel vault, non apre Airbnb o Booking di sua iniziativa, non aggiunge spese al conto. Riepilogo del mattino, avviso «esci adesso», allarme prezzo voli e controllo del PC a distanza sono stati scartati, almeno per ora.</div>
 
-<footer>Jarvis · <code>Desktop\prog\jarvis</code> · elenco ricavato dal codice il 4 ottobre 2026</footer>
+<footer>Jarvis · <code>Desktop\prog\jarvis</code> · elenco ricavato dal codice il 12 ottobre 2026</footer>
 </div>
 </body>
 </html>
