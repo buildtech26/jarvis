@@ -38,7 +38,9 @@ def main() -> int:
             "uova": [ricetta(6, "Frittata di spinaci", ["uova", "spinaci", "formaggio light"]),
                      ricetta(7, "Omelette ripiena", ["uovo", "formaggio light", "skyr o yogurt greco 0%"]),
                      ricetta(2, "Pollo allo yogurt", ["petto di pollo", "yogurt greco 0%"])],
-            "riso": [ricetta(8, "Riso al salmone", ["riso", "salmone", "avocado", "sesamo"])]}
+            "riso": [ricetta(8, "Riso al salmone", ["riso", "salmone", "avocado", "sesamo"]),
+                     ricetta(12, "Riso e anacardi", ["riso", "anacardi"]),
+                     ricetta(13, "Riso e gamberi", ["riso", "gamberi"])]}
     cercate = []
 
     def cerca(cosa, quante):
@@ -55,9 +57,10 @@ def main() -> int:
            proposta["pronte"])
     acquisti = {nome: sorted(r["id"] for r in ricette) for nome, ricette in proposta["acquisti"]}
     atteso(acquisti.get("yogurt greco") == [2, 3, 7] and acquisti.get("formaggio light") == [6, 7]
-           and acquisti.get("zucchine") == [3] and "salmone" not in acquisti and "proteine alla vaniglia" not in acquisti,
-           "yogurt greco (0%, 2%, skyr o yogurt) è un acquisto solo; niente proteine in polvere né ricette a cui "
-           "mancano 3 cose", proposta["acquisti"])
+           and acquisti.get("zucchine") == [3] and "salmone" not in acquisti and "proteine alla vaniglia" not in acquisti
+           and "anacardi" not in acquisti and "gamberi" not in acquisti,
+           "yogurt greco (0%, 2%, skyr o yogurt) è un acquisto solo; niente proteine in polvere, ingredienti cari né "
+           "ricette a cui mancano 3 cose", proposta["acquisti"])
     testo = spesa.consigli_spesa()
     atteso(testo.index("Yogurt greco: 3 ricette in più") < testo.index("Formaggio light: 2")
            and "Stanno finendo: Latte" in testo and "Finiti: Burro" in testo and "puoi fare 1 ricette" in testo,

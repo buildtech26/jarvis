@@ -2,8 +2,8 @@
 dispensa, più quello che sta finendo. Su richiesta (consigli_spesa) e il sabato alle 9 su Telegram (controlla).
 
 Le ricette si cercano sul sito con gli ingredienti principali che sono in casa (pollo, tonno, ceci...); per ognuna
-dispensa.mancano dice cosa manca. Contano quelle a cui mancano al massimo 2 ingredienti, senza proteine in polvere o
-prodotti di marca; gli acquisti si scelgono uno alla volta, ogni volta quello che completa più ricette.
+dispensa.mancano dice cosa manca. Contano quelle a cui mancano al massimo 2 ingredienti, senza proteine in polvere,
+prodotti di marca o ingredienti cari da comprare (alimentazione.CARI: budget medio-basso); gli acquisti si scelgono uno alla volta, ogni volta quello che completa più ricette.
 """
 import datetime
 import json
@@ -63,7 +63,7 @@ def _proposta(voci: list[dict]) -> dict:
         fuori = alimentazione._non_in_casa(alimentazione._ingredienti(r), voci) or []
         if not fuori:
             pronte.append(r)
-        elif len(fuori) <= MAX_MANCANTI and not any(SCARTA.search(f) for f in fuori):
+        elif len(fuori) <= MAX_MANCANTI and not any(SCARTA.search(f) or alimentazione.CARI.search(f) for f in fuori):
             vicine.append((r, fuori))
     # ogni ingrediente mancante diventa una chiave; con le alternative ("skyr o yogurt greco") vince la più comune
     conta = Counter(_chiave(a) for _, fuori in vicine for f in fuori for a in dispensa._alternative(f))

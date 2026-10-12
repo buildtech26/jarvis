@@ -203,6 +203,16 @@ def main() -> int:
     atteso("NON IN DISPENSA: limone." in r and "Totale" in r, "calcola_ricetta avvisa di cosa manca (sale no)", r)
     r = alimentazione.calcola_ricetta("petto di pollo 150, piselli 100")
     atteso("In dispensa ci sono tutti gli ingredienti." in r, "calcola_ricetta: c'è tutto", r)
+    r = alimentazione.calcola_ricetta("petto di pollo 150, avocado 50")
+    atteso("CARI DA COMPRARE: avocado." in r, "calcola_ricetta segnala gli ingredienti cari", r)
+    sito["salmone"] = [ricetta(9, "Salmone e avocado", ["salmone", "avocado"]),
+                       ricetta(10, "Salmone e piselli", ["salmone affumicato", "piselli"]),
+                       ricetta(11, "Ciotola di piselli", ["piselli", "zucchine"])]
+    alimentazione._voci_dispensa = lambda: None
+    r = alimentazione.ricette_fit_with_fun("salmone")
+    atteso(r.index("Ciotola di piselli") < r.index("Salmone e piselli") < r.index("Salmone e avocado")
+           and "Cari da comprare: salmone, avocado" in r and "budget medio-basso" in r,
+           "prima le ricette senza ingredienti cari", r)
     r = alimentazione.calcola_ricetta("peperone 100")
     atteso("(come verdure)" in r, "il peperone ha le kcal (non è pepe)", r)
 

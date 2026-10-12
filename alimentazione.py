@@ -46,6 +46,12 @@ VERDURE = re.compile(r"spinac|pomodor|passata|pelati|zucchin|broccol|fagiolin|ca
 SENZA_KCAL = re.compile(r"\bsale|\bpepe\b|spezie|origano|basilico|prezzemol|rosmarino|peperoncin|aceto|limone|\bacqua|"
                         r"eritritol|xilitol|dolcificant|stevia|lievit|noce moscata|curcuma|"
                         r"^(?:aroma |estratto di )?vanigli|^cannella", re.I)
+# ingredienti cari, da non far comprare (budget medio-basso, scelta dell'utente del 12/10): i prezzi veri non ci sono,
+# l'elenco viene dai nomi delle ricette di Fit with Fun. Burro di arachidi, skyr e yogurt greco restano: prezzo medio
+CARI = re.compile(r"salmon|avocad|guacamol|gamber|pistacch|mandorl|\bnocciol|anacard|pinol|macadamia|quinoa|"
+                  r"semi di (?:chia|canapa)|\bchia\b|goji|mirtill|lampon|sciroppo d'(?:acero|agave)|\bcocco\b|"
+                  r"porcin|zafferan|tartufo|seitan|tofu|tempeh|fumo liquido|carrub|bresaola|prosciutto crudo|"
+                  r"pesce spada|branzin|orata|filetto di manzo|tonno fresco", re.I)
 UOVO = 50  # grammi di un uovo medio senza guscio: "uova 3" sono 3 uova, non 3 grammi
 FIT_WITH_FUN = "https://fitwithfun.it"
 # parole tolte dalla ricerca: il sito vuole tutte le parole nella ricetta, e "idea" o "stasera" non ci sono mai
@@ -409,6 +415,10 @@ def calcola_ricetta(ingredienti: str) -> str:
         testo += (f"\nNon contati (non sono nella tabella della nota o manca la quantità): {', '.join(mancano)}. "
                   "Dillo all'utente.")
     fuori = _non_in_casa(nomi, _voci_dispensa())
+    cari = [n for n in (nomi if fuori is None else fuori) if CARI.search(n)]
+    if cari:
+        testo += (f"\nCARI DA COMPRARE: {', '.join(cari)}. L'utente ha un budget medio-basso: sostituiscili con "
+                  "ingredienti economici e richiama calcola_ricetta.")
     if fuori:
         testo += (f"\nNON IN DISPENSA: {', '.join(fuori)}. Se è una ricetta da cucinare, avvisa l'utente che "
                   "questi ingredienti non li ha in casa (e, se c'è, proponi un sostituto che ha).")
@@ -445,7 +455,7 @@ def _ingredienti(ricetta: dict) -> list[str]:
             for i in ricetta.get("ingredients_flat") or [] if i.get("type") != "group"]
 
 
-def _ricetta_testo(ricetta: dict, link: str, fuori: list[str] | None = None) -> str:
+def _ricetta_testo(ricetta: dict, link: str, fuori: list[str] | None = None, cari: list[str] = ()) -> str:
     kcal = (ricetta.get("nutrition") or {}).get("calories")
     porzioni = f"{ricetta.get('servings') or ''} {ricetta.get('servings_unit') or ''}".strip()
     testa = _html(ricetta["name"]) + (f" — {kcal} kcal a porzione secondo il sito" if kcal else " — kcal non indicate")
@@ -464,6 +474,8 @@ def _ricetta_testo(ricetta: dict, link: str, fuori: list[str] | None = None) -> 
     if len(passaggi) > 600:
         passaggi = passaggi[:600].rsplit(" ", 1)[0] + "…"
     casa = "" if fuori is None else ("\nNon in dispensa: " + ", ".join(fuori) if fuori else "\nIn dispensa c'è tutto")
+    if cari:
+        casa += "\nCari da comprare: " + ", ".join(re.sub(r"\s*\([^)]*\)", "", c) for c in cari)
     return f"{testa}\nIngredienti: {'; '.join(ingredienti)}{casa}\nPassaggi: {passaggi}\nLink: {link}"
 
 
@@ -491,14 +503,20 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
     voci = _voci_dispensa()
     fuori = {}  # id della ricetta → ingredienti che non sono in dispensa (None senza dispensa)
 
-    def mancanti(r: dict) -> int:
+    def cari(r: dict) -> list[str]:
+        """Gli ingredienti cari da comprare: quelli che non sono in casa, o tutti se la dispensa non c'è."""
         if r["id"] not in fuori:
             fuori[r["id"]] = _non_in_casa(_ingredienti(r), voci)
-        return len(fuori[r["id"]] or [])
+        da_comprare = fuori[r["id"]] if voci is not None else _ingredienti(r)
+        return [i for i in da_comprare if CARI.search(i) and "facoltativ" not in i.lower()]
+
+    def peso(r: dict) -> tuple[int, int]:
+        return len(cari(r)), len(fuori[r["id"]] or [])
 
     try:
-        # prima quelle con meno ingredienti che non sono in casa (sort stabile: a parità resta l'ordine del sito)
-        ricette = sorted((r for r in _cerca_ricette(" ".join(parole), 20) if _adatta(r, pasto)), key=mancanti)
+        # prima le ricette senza ingredienti cari da comprare, poi quelle con meno ingredienti che non sono in casa
+        # (sort stabile: a parità resta l'ordine del sito)
+        ricette = sorted((r for r in _cerca_ricette(" ".join(parole), 20) if _adatta(r, pasto)), key=peso)
         if not ricette and len(parole) > 1:
             # nessuna ricetta con tutte le parole: si cerca parola per parola e vincono quelle che ne hanno di più
             radici = {_radice(p) for p in parole}
@@ -509,7 +527,7 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
                     punti = sum(radice in testo.lower() for radice in radici)
                     if punti and _adatta(r, pasto):
                         trovate[r["id"]] = (punti, r)
-            ricette = [r for _, r in sorted(trovate.values(), key=lambda x: (-x[0], mancanti(x[1])))]
+            ricette = [r for _, r in sorted(trovate.values(), key=lambda x: (-x[0], *peso(x[1])))]
     except (requests.RequestException, ValueError, KeyError) as e:
         return f"Fit with Fun non risponde ({e}): proponi una ricetta tua e di' che non viene dal sito."
     if not ricette:
@@ -519,9 +537,11 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
     articoli = [int(r.get("parent_post_id") or 0) for r in ricette]  # l'API lo dà a volte come stringa
     link = _link_ricette([a for a in articoli if a])
     elenco = "\n\n".join(f"{n}. " + _ricetta_testo(r, link.get(a) or f"{FIT_WITH_FUN}/?p={a or r['id']}",
-                                                     fuori.get(r["id"]))
+                                                     fuori.get(r["id"]), cari(r))
                          for n, (r, a) in enumerate(zip(ricette, articoli), 1))
-    casa = ("" if voci is None else " Preferisci quella con meno ingredienti \"Non in dispensa\". Per ognuno di "
+    casa = " L'utente ha un budget medio-basso: evita le ricette con \"Cari da comprare\" se ce n'è una senza; se la " \
+           "proponi lo stesso, sostituisci quegli ingredienti con uno economico e dillo."
+    casa += ("" if voci is None else " Preferisci quella con meno ingredienti \"Non in dispensa\". Per ognuno di "
             "quelli della ricetta scelta di' SEMPRE all'utente che non ce l'ha in casa, anche se lo togli o lo "
             "sostituisci (es. \"i piselli non li hai: li ho tolti\" o \"lo yogurt greco non ce l'hai: compralo o usa il "
             "latte\").")
