@@ -20,6 +20,7 @@ import requests
 
 import cronometer
 import dispensa
+import openfood
 from allenamento import _giorno, _sezione
 
 CARTELLA = Path(os.getenv("JARVIS_ALIMENTAZIONE", Path.home() / "Desktop" / "obsidian" / "Jarvis" / "Alimentazione"))
@@ -379,35 +380,58 @@ def _non_in_casa(ingredienti: list[str], voci: list[dict] | None) -> list[str] |
     return dispensa.mancano([i for i in ingredienti if "facoltativ" not in i.lower()], voci)
 
 
+def _completa(nome: str, voce: str | None) -> bool:
+    """La riga della tabella è proprio quell'ingrediente: ci sono tutte le sue parole ("petto di pollo" sì,
+    "mozzarella light" sulla riga "mozzarella" no). Verdure e legumi in scatola hanno la loro riga apposta."""
+    if voce is None:
+        return False
+    if VERDURE.search(nome) or voce.startswith("verdur") or "scatol" in voce:
+        return True
+    # "proteine alla vaniglia" nelle ricette è la polvere; su Open Food Facts sarebbero yogurt e budini proteici
+    if nome.startswith("protein") and voce.startswith("proteine in polvere"):
+        return True
+    sue = {_radice(p) for p in re.findall(r"[a-zà-ù]{4,}", nome.lower())}
+    return sue <= {_radice(p) for p in re.findall(r"[a-zà-ù]{4,}", voce)}
+
+
 def calcola_ricetta(ingredienti: str) -> str:
-    """Kcal e proteine di una ricetta, calcolate con i valori degli ingredienti della nota, e gli ingredienti che non
-    sono in dispensa. Da usare per ogni ricetta proposta: i totali da riportare sono questi.
+    """Kcal e proteine di una ricetta e gli ingredienti che non sono in dispensa. I valori vengono dalla tabella della
+    nota quando l'ingrediente c'è con lo stesso nome, se no da Open Food Facts (mediana dei prodotti con quel nome).
+    Da usare per ogni ricetta proposta: i totali da riportare sono questi.
 
     Args:
         ingredienti: ingredienti a crudo con i grammi, separati da virgole, es. 'pasta 80, tonno al naturale 120,
             pomodori 200, olio 10'; le uova si contano a pezzi ('uova 3')
     """
     valori = _valori(_nota())
-    righe, mancano, nomi, kcal, proteine = [], [], [], 0.0, 0.0
+    pezzi = []  # (testo, grammi o None, nome, riga della tabella)
     for pezzo in re.split(r"[,;\n]", ingredienti):
-        quanto = _numero(pezzo)
         nome = " ".join(re.sub(r"\d+(?:[.,]\d+)?|\b(?:g|gr|grammi|di|da|q\.?b\.?)\b", " ", pezzo).split()).strip(" .:-").lower()
         if nome:
-            nomi.append(nome)  # anche limone e spezie: senza kcal, ma se mancano l'utente lo deve sapere
-        if not nome or SENZA_KCAL.search(nome):
+            pezzi.append((pezzo.strip(), _numero(pezzo), nome, _trova(nome, valori)))
+    nomi = [nome for _, _, nome, _ in pezzi]  # anche limone e spezie: senza kcal, ma se mancano l'utente lo deve sapere
+    contare = [p for p in pezzi if not SENZA_KCAL.search(p[2])]
+    # Open Food Facts solo per quello che nella tabella non c'è uguale: i cibi freschi lì sono pochi e cotti
+    online = openfood.valori([nome for _, q, nome, voce in contare if q is not None and not _completa(nome, voce)])
+    righe, mancano, kcal, proteine = [], [], 0.0, 0.0
+    for pezzo, quanto, nome, voce in contare:
+        trovato = online.get(nome)
+        if quanto is None or (trovato is None and voce is None):
+            mancano.append(pezzo)
             continue
-        voce = _trova(nome, valori)
-        if voce is None or quanto is None:
-            mancano.append(pezzo.strip())
-            continue
-        grammi = quanto * UOVO if voce.startswith("uov") and quanto <= 12 else quanto
-        k, p = valori[voce][0] * grammi / 100, valori[voce][1] * grammi / 100
+        grammi = quanto * UOVO if re.search(r"\buov[ao]", nome) and quanto <= 12 else quanto
+        if trovato:
+            per100, fonte = (trovato["kcal"], trovato["proteine"]), (
+                f"Open Food Facts, mediana di {trovato['prodotti']} prodotti come \"{trovato['esempio']}\"")
+        else:
+            per100, fonte = valori[voce], f"come {voce}"
+        k, p = per100[0] * grammi / 100, per100[1] * grammi / 100
         kcal, proteine = kcal + k, proteine + p
-        righe.append(f"{nome} {grammi:g} g (come {voce}): {k:.0f} kcal, {p:.1f} g di proteine")
+        righe.append(f"{nome} {grammi:g} g ({fonte}): {k:.0f} kcal, {p:.1f} g di proteine")
     testo = "\n".join(righe) + f"\nTotale: {round(kcal / 10) * 10:.0f} kcal e {proteine:.0f} g di proteine."
     if mancano:
-        testo += (f"\nNon contati (non sono nella tabella della nota o manca la quantità): {', '.join(mancano)}. "
-                  "Dillo all'utente.")
+        testo += (f"\nNon contati (non sono né nella tabella della nota né su Open Food Facts, o manca la quantità): "
+                  f"{', '.join(mancano)}. Dillo all'utente.")
     fuori = _non_in_casa(nomi, _voci_dispensa())
     if fuori:
         testo += (f"\nNON IN DISPENSA: {', '.join(fuori)}. Se è una ricetta da cucinare, avvisa l'utente che "

@@ -43,7 +43,7 @@ delle ricette.
 - Tonno al naturale 110 · 25 g; merluzzo o platessa surgelati 75 · 17 g
 - Yogurt greco magro 57 · 10 g; fiocchi di latte 105 · 12 g; ricotta vaccina 145 · 10 g; latte parzialmente
   scremato 46 · 3,3 g; parmigiano o grana 390 · 33 g
-- Olio d'oliva 900 (un cucchiaio da 10 g = 90 kcal); verdure 20-35 · 1-3 g; mela 50; banana 90
+- Olio extravergine d'oliva 900 (un cucchiaio da 10 g = 90 kcal); verdure 20-35 · 1-3 g; mela 50; banana 90
 
 Ingredienti che compaiono spesso nelle ricette di Fit with Fun:
 

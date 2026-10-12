@@ -11,6 +11,7 @@ from pathlib import Path
 import alimentazione
 import cronometer
 import dispensa
+import openfood
 
 
 def main() -> int:
@@ -27,6 +28,14 @@ def main() -> int:
     alimentazione.FILE = cartella / "alimentazione.json"
     cronometer.configurato = lambda: False
     dispensa.configurata = lambda: False  # la dispensa vera è su Notion: qui non si legge
+    su_open_food = {}  # Open Food Facts finto: niente trovato, salvo quello che la prova mette qui
+    chiesti_a_open_food = []
+
+    def open_food(nomi):
+        chiesti_a_open_food.extend(nomi)
+        return {n: su_open_food.get(n) for n in nomi}
+
+    openfood.valori = open_food
     oggi = datetime.date(2026, 10, 11)
 
     r = alimentazione.consigli_alimentazione()
@@ -151,6 +160,29 @@ def main() -> int:
     atteso("(come grano saraceno): 340 kcal" in r and "(come cacao amaro)" in r and "(come albume): 50 kcal" in r
            and "(come verdure)" in r and "(come proteine in polvere): 114 kcal" in r and "eritritolo" not in r
            and "Non contati" not in r, "ingredienti di Fit with Fun", r)
+
+    # Open Food Facts: solo per quello che nella tabella non c'è uguale; se non lo trova vale la riga più vicina
+    chiesti_a_open_food.clear()
+    su_open_food.update({"mozzarella light": {"kcal": 163, "proteine": 18, "prodotti": 12, "esempio": "Mozzarella light"},
+                         "piadina": {"kcal": 300, "proteine": 8, "prodotti": 9, "esempio": "Piadina romagnola"}})
+    r = alimentazione.calcola_ricetta("petto di pollo 150, mozzarella light 100, piadina 60, uova 2, "
+                                      "zucchine 200, skyr 100, sale 1, proteine al cioccolato 30, olio evo 10, "
+                                      "olio extravergine di oliva 5")
+    atteso(sorted(chiesti_a_open_food) == ["mozzarella light", "piadina", "skyr"]
+           and "petto pollo 150 g (come petto di pollo): 165 kcal" in r
+           and "mozzarella light 100 g (Open Food Facts, mediana di 12 prodotti" in r and "163 kcal, 18.0 g" in r
+           and "piadina 60 g (Open Food Facts" in r and "(come proteine in polvere)" in r
+           and "olio evo 10 g (come olio extravergine d'oliva): 90 kcal" in r
+           and "olio extravergine oliva 5 g (come olio extravergine d'oliva): 45 kcal" in r and "uova 100 g (come uova)" in r and "(come verdure)" in r
+           and "Non contati (non sono né nella tabella della nota né su Open Food Facts, o manca la quantità): skyr 100"
+           in r, "tabella per i nomi uguali, Open Food Facts per gli altri", r)
+    for nome, prodotto, giusto in [("olio extravergine di oliva", "Olio extra vergine di oliva", True),
+                                   ("olio extravergine di oliva", "Focaccelle con olio extravergine di oliva", False),
+                                   ("mozzarella light", "Santa Lucia Mozzarella Light Tris", True),
+                                   ("mozzarella light", "Mozzarella", False),
+                                   ("ceci lessati", "Ceci lessati bio", True),
+                                   ("pasta integrale", "Sugo per pasta integrale", False)]:
+        atteso(openfood._adatto(nome, prodotto) == giusto, f"Open Food Facts: {prodotto!r} per {nome!r}")
 
     # --- ricette di Fit with Fun (sito finto: niente rete) ---
     def ricetta(id, nome, ingredienti, portate=("Cena", "Pranzo")):
