@@ -48,6 +48,8 @@ l'accesso a Windows e lo riavvia se si chiude. L'output finisce in `jarvis.log`.
 - una **foto** (o un'immagine mandata come file, a qualità piena: meglio per lavagne e documenti) viene letta da
   Gemini e salvata in Obsidian; se la didascalia è una domanda Jarvis risponde
 - `/consumi` richieste Gemini del giorno di quota (dalle 9 alle 9) per modello e ricerche SerpApi rimaste
+- `/controllo` prova subito tutti i servizi esterni e dice quali funzionano (lo stesso controllo gira da solo
+  alle 8 e scrive solo se qualcosa è rotto)
 - `/treni` treni seguiti per gli avvisi di ritardo
 
 ## File

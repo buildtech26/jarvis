@@ -15,6 +15,8 @@ from pathlib import Path
 import requests
 
 _BASE = "http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno"
+# senza User-Agent da browser ViaggiaTreno risponde 403 Access Denied (visto dal controllo del mattino il 12/10)
+_INTESTAZIONI = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 FILE = Path(__file__).with_name("treni_seguiti.json")
 _lock = threading.Lock()
 ANTICIPO = datetime.timedelta(minutes=90)  # da quanto prima della partenza si comincia a controllare
@@ -25,7 +27,7 @@ SOGLIA = 5  # minuti di ritardo (o di variazione) che meritano un messaggio
 def _andamento(numero: str, giorno: datetime.date, stazione: str = "") -> dict | None:
     """Dati del treno in quel giorno. Lo stesso numero può esistere con origini diverse: si sceglie
     quello che ferma nella stazione indicata."""
-    r = requests.get(f"{_BASE}/cercaNumeroTrenoTrenoAutocomplete/{numero}", timeout=15)
+    r = requests.get(f"{_BASE}/cercaNumeroTrenoTrenoAutocomplete/{numero}", headers=_INTESTAZIONI, timeout=15)
     r.raise_for_status()
     mezzanotte = int(datetime.datetime.combine(giorno, datetime.time()).timestamp() * 1000)
     candidati = []
@@ -33,7 +35,7 @@ def _andamento(numero: str, giorno: datetime.date, stazione: str = "") -> dict |
         if "|" not in riga:
             continue
         num, origine, _ = riga.split("|")[1].split("-")
-        d = requests.get(f"{_BASE}/andamentoTreno/{origine}/{num}/{mezzanotte}", timeout=15)
+        d = requests.get(f"{_BASE}/andamentoTreno/{origine}/{num}/{mezzanotte}", headers=_INTESTAZIONI, timeout=15)
         if d.ok and d.text.strip():
             candidati.append(d.json())
     if not candidati:

@@ -12,6 +12,7 @@ import alimentazione
 import allenamento
 import brain
 import calendario
+import controllo
 import cronometer
 import dispensa
 import spesa
@@ -114,6 +115,16 @@ class BotTelegram:
                     print(f"[{modulo.__name__}] errore: {e}")
             time.sleep(60)
 
+    def ciclo_controllo(self):
+        """Il controllo dei servizi esterni del mattino (controllo.py): arriva un messaggio solo se qualcosa è rotto."""
+        while True:
+            try:
+                for testo in controllo.controlla():
+                    self.invia(self.utente, testo)
+            except Exception as e:
+                print(f"[controllo] errore: {e}")
+            time.sleep(60)
+
     def manda_parcheggio(self, chat_id):
         punto = parcheggio.posizione()
         if punto:  # il segnaposto si apre in Google Maps / Apple Mappe e da lì parte la navigazione
@@ -173,6 +184,10 @@ class BotTelegram:
             return
         if testo == "/consumi":
             self.invia(chat_id, quota.consumi())  # senza modello: non consuma a sua volta una richiesta
+            return
+        if testo == "/controllo":
+            self.scrive(chat_id)
+            self.invia(chat_id, controllo.rapporto())  # circa 10 s: tutte le prove in parallelo
             return
         if testo == "/treni":
             self.invia(chat_id, ritardi.treni_seguiti())
@@ -333,6 +348,7 @@ class BotTelegram:
 
     def avvia(self):
         threading.Thread(target=self.ciclo_promemoria, daemon=True).start()
+        threading.Thread(target=self.ciclo_controllo, daemon=True).start()
         if calendario.configurato():
             threading.Thread(target=self.ciclo_allenamento, daemon=True).start()
         if cronometer.configurato():
