@@ -61,7 +61,8 @@ if (-not $SenzaProve) {
         Write-Output "uvx non trovato: salto pyflakes."
     }
     foreach ($prova in 'prova_cervello.py', 'prova_gruppi.py', 'prova_verifica.py', 'prova_calendario.py',
-                       'prova_allenamento.py', 'prova_alimentazione.py', 'prova_dispensa.py', 'prova_spesa.py') {
+                       'prova_allenamento.py', 'prova_alimentazione.py', 'prova_dispensa.py', 'prova_spesa.py',
+                       'prova_salute.py') {
         $uscita = @(& (Join-Path $cartella '.venv\Scripts\python.exe') $prova 2>&1 | ForEach-Object { "$_" })
         if ($LASTEXITCODE -ne 0) { $problemi += "${prova}:`n" + (($uscita | Select-Object -Last 10) -join "`n") }
     }

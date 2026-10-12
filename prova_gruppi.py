@@ -109,6 +109,11 @@ CASI = [
     (["ho finito il latte"], "aggiorna_dispensa"),
     (["ho buttato lo yogurt scaduto"], "aggiorna_dispensa"),
     (["cosa ho in frigo?", "e nel freezer?"], "dispensa"),
+    (["come ho dormito stanotte?"], "dati_salute"),
+    (["quanti passi ho fatto oggi?"], "dati_salute"),
+    (["com'è andato il sonno questa settimana?"], "dati_salute"),
+    (["che battito a riposo ho?"], "dati_salute"),
+    (["quante calorie ho bruciato?"], "dati_salute"),
     # seguiti: la domanda da sola non dice niente, la precedente sì
     (["che treno prendo per Milano domani?", "e dopodomani?"], "cerca_treni"),
     (["quanto ho speso questo mese?", "e il mese scorso?"], "spese_riepilogo"),

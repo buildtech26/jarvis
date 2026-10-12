@@ -88,7 +88,7 @@ della via e la linea se detta; se l'utente non dice la fermata usa quella indica
 Riporta solo i prossimi 2-3 passaggi e di' se l'orario è da GPS o da orario""",
     ),
     "alloggi": (
-        r"\bdorm|allogg|appartament|stanz|airbnb|booking|hotel|albergh|\bb&b\b|ostell|pernott|weekend a",
+        r"\bdormo\b|\bdormire\b|allogg|appartament|stanz|airbnb|booking|hotel|albergh|\bb&b\b|ostell|pernott|weekend a",
         ["cerca_alloggi", "mostra_alloggi"],
         """- appartamenti, case, stanze, "dove dormo a ...", Airbnb, Booking: cerca_alloggi; per VEDERLI o aprire Airbnb/Booking \
 mostra_alloggi, mai cerca_nel_browser""",
@@ -163,6 +163,15 @@ dispensa. "Ho comprato...", "ho finito il latte", "ho buttato...", "ho ancora me
 con l'azione giusta (aggiungi, finito, togli, imposta), stimando tu le quantità che l'utente non dice. Quello che \
 mangia e segna in Cronometer si scala da solo la sera: non toglierlo tu. "Cosa compro", "cosa prendo al \
 supermercato", "consigli/lista per la spesa": consigli_spesa""",
+    ),
+    "salute": (
+        r"dormit|\bsonno\b|riposat|\bstanc|\bpassi\b|camminat|battito|\bcuore\b|cardiac|\bhrv\b|ossigen|respir|"
+        r"\bsalute\b|apple health|orologio|smartwatch|moto watch|calorie bruciate|\bbruciat|\bpeso\b",
+        ["dati_salute"],
+        """- dati di Apple Salute (orologio Moto Watch 120 e iPhone): "come ho dormito", "quanti passi ho fatto", \
+battito, HRV, calorie bruciate, ossigeno, peso registrato, allenamenti registrati dall'orologio: dati_salute \
+(giorni=1 per oggi e la notte scorsa, 7 per la settimana). Usa SOLO i numeri del risultato, mai stime tue; se dice \
+che i dati sono vecchi o mancano, dillo. Niente diagnosi mediche""",
     ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"
