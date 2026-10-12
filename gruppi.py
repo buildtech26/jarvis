@@ -156,12 +156,13 @@ esplicita: riporta la ricetta per intero, senza il limite delle tre frasi. Chiud
     ),
     "dispensa": (
         r"dispens|\bfrigo|frigorifer|freezer|congelator|in casa|comprat|ricompr|da comprare|ho preso|\bfinit[oaie]\b|"
-        r"\bbuttat|scadut|avanz|cosa (?:ho|c'è) da mangiare",
-        ["dispensa", "aggiorna_dispensa"],
+        r"\bbuttat|scadut|avanz|cosa (?:ho|c'è) da mangiare|\bspesa\b|supermercat|cosa (?:devo )?compr",
+        ["dispensa", "aggiorna_dispensa", "consigli_spesa"],
         """- dispensa (il cibo in casa, su Notion): "cosa ho in frigo", "cosa c'è in casa", "cosa devo ricomprare": \
 dispensa. "Ho comprato...", "ho finito il latte", "ho buttato...", "ho ancora mezzo chilo di pasta": aggiorna_dispensa \
 con l'azione giusta (aggiungi, finito, togli, imposta), stimando tu le quantità che l'utente non dice. Quello che \
-mangia e segna in Cronometer si scala da solo la sera: non toglierlo tu""",
+mangia e segna in Cronometer si scala da solo la sera: non toglierlo tu. "Cosa compro", "cosa prendo al \
+supermercato", "consigli/lista per la spesa": consigli_spesa""",
     ),
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"

@@ -14,6 +14,7 @@ import brain
 import calendario
 import cronometer
 import dispensa
+import spesa
 import documenti
 import foto
 import parcheggio
@@ -102,10 +103,10 @@ class BotTelegram:
             time.sleep(60)
 
     def ciclo_alimentazione(self):
-        """Il riepilogo delle 21:30 con i dati di Cronometer (alimentazione.py) e i pasti tolti dalla dispensa
-        (dispensa.py), controllati una volta al minuto."""
+        """Il riepilogo delle 21:30 con i dati di Cronometer (alimentazione.py), i pasti tolti dalla dispensa
+        (dispensa.py) e i consigli per la spesa del sabato (spesa.py), controllati una volta al minuto."""
         while True:
-            for modulo in (alimentazione, dispensa):
+            for modulo in (alimentazione, dispensa, spesa):
                 try:
                     for testo in modulo.controlla():
                         self.invia(self.utente, testo)

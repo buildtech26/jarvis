@@ -32,6 +32,7 @@ import ricerche
 import ritardi
 import sapere
 import siti
+import spesa
 import spese
 import tper
 import treni
@@ -354,7 +355,7 @@ if posta.configurata():
 if calendario.configurato():
     TUTTI += calendario.STRUMENTI + allenamento.STRUMENTI
 if notion.configurato():
-    TUTTI += notion.STRUMENTI + dispensa.STRUMENTI
+    TUTTI += notion.STRUMENTI + dispensa.STRUMENTI + spesa.STRUMENTI
 if spese.configurato():
     TUTTI += spese.STRUMENTI
 PER_NOME = {f.__name__: f for f in TUTTI}

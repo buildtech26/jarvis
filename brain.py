@@ -122,8 +122,8 @@ COMANDI = [
      lambda m: spese.in_breve("saldo")),
 ]
 # strumenti il cui risultato arriva all'utente così com'è, senza il riassunto del modello: l'allenamento va detto per
-# intero (il 12/10 Flash-Lite aveva risposto con una battuta e il solo link, senza esercizi)
-INTEGRALI = {"seduta_allenamento"}
+# intero (il 12/10 Flash-Lite aveva risposto con una battuta e il solo link, senza esercizi); la spesa è già una lista
+INTEGRALI = {"seduta_allenamento", "consigli_spesa"}
 RICORDA = re.compile(r"^(?:jarvis,?\s+)?(?:ricordati|ricorda|tieni a mente|memorizza)\b(?:\s+che)?\s+(.+)", re.I | re.S)
 
 
