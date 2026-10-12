@@ -225,17 +225,37 @@ def _per_pasto_segnato(cibi: list[dict]) -> dict[str, list[dict]]:
     return dict(sorted(pasti.items(), key=lambda p: ordine.index(p[0]) if p[0] in ordine else len(ordine)))
 
 
+def _senza_valori(cibi: list[dict], totali: dict | None) -> tuple[list[dict], str]:
+    """Certi cibi di marca arrivano nel dettaglio di Cronometer senza valori, mentre il totale del giorno li conta (il
+    12/10 la cotoletta Lidl: 0 kcal nel dettaglio, 496 nel totale). Se ce n'è uno solo prende la differenza col
+    totale; se sono di più la differenza si dice a parte. Restituisce i cibi (copie) e la riga da aggiungere."""
+    vuoti = [c for c in cibi if c["kcal"] < 1 and c["proteine"] < 0.1]
+    if not vuoti or not totali:
+        return cibi, ""
+    resto = {k: max(totali[k] - sum(c[k] for c in cibi), 0) for k in ("kcal", "proteine", "carboidrati", "grassi")}
+    if resto["kcal"] < 1:
+        return cibi, ""
+    if len(vuoti) == 1:
+        cibi = [{**c, **resto, "dal_totale": True} if c is vuoti[0] else c for c in cibi]
+        return cibi, ""
+    return cibi, (f"\nSenza valori nel dettaglio di Cronometer: {', '.join(c['nome'] for c in vuoti)}; insieme fanno "
+                  f"circa {resto['kcal']:.0f} kcal e {resto['proteine']:.0f} g di proteine (la differenza col totale).")
+
+
 def _giorno_testo(giorno: datetime.date, totali: dict | None, cibi: list[dict], n: dict | None) -> str:
     if not totali or totali["kcal"] < 1:
         return f"{giorno:%d/%m}: in Cronometer non c'è niente segnato."
     testo = (f"{giorno:%d/%m} in Cronometer: {_su(totali['kcal'], n, 'calorie', ' kcal')}, "
              f"{_su(totali['proteine'], n, 'proteine', ' g')} di proteine, {totali['carboidrati']:.0f} g di "
              f"carboidrati, {totali['grassi']:.0f} g di grassi.")
+    cibi, nota = _senza_valori(cibi, totali)
     for pasto, suoi in _per_pasto_segnato(cibi).items():
         testo += (f"\n{pasto}: {sum(c['kcal'] for c in suoi):.0f} kcal, {sum(c['proteine'] for c in suoi):.0f} g di "
                   "proteine\n" + "\n".join(f"- {c['nome']} ({c['quantita']}): {c['kcal']:.0f} kcal, "
-                                           f"{c['proteine']:.0f} g di proteine" for c in suoi))
-    return testo
+                                           f"{c['proteine']:.0f} g di proteine"
+                                           + (" (dal totale del giorno: nel dettaglio di Cronometer è senza valori)"
+                                              if c.get("dal_totale") else "") for c in suoi))
+    return testo + nota
 
 
 def _settimana(fine: datetime.date, n: dict | None) -> str:
@@ -264,7 +284,7 @@ def riepilogo(giorno: datetime.date) -> str:
     else:
         testo = (f"🍽 Oggi finora: {_su(t['kcal'], n, 'calorie', ' kcal')} e "
                  f"{_su(t['proteine'], n, 'proteine', ' g')} di proteine.")
-        pasti = _per_pasto_segnato(cronometer.cibi(giorno))
+        pasti = _per_pasto_segnato(_senza_valori(cronometer.cibi(giorno), t)[0])
         if pasti:
             testo += "\n" + " · ".join(f"{p} {sum(c['kcal'] for c in suoi):.0f} kcal" for p, suoi in pasti.items())
         if n and t["proteine"] < n["proteine"] * 0.85:

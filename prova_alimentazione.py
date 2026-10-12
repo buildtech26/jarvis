@@ -153,6 +153,19 @@ def main() -> int:
     atteso(cronometer._macro(riga) == {"kcal": 1712.5, "proteine": 101.3, "carboidrati": 180.2, "grassi": 55}
            and cronometer._data(riga) == domenica, "colonne del CSV", cronometer._macro(riga))
 
+    # il 12/10: la cotoletta Lidl nel dettaglio senza valori, ma contata nel totale del giorno
+    cotoletta = {"nome": "Lidl, Cotoletta", "quantita": "200.00 g", "gruppo": "Dinner", "kcal": 0.0, "proteine": 0.0,
+                 "carboidrati": 0.0, "grassi": 0.0}
+    yogurt = {"nome": "Yogurt", "quantita": "150 g", "gruppo": "Breakfast", "kcal": 90.0, "proteine": 15.0,
+              "carboidrati": 6.0, "grassi": 0.0}
+    totali = {"kcal": 586.0, "proteine": 37.0, "carboidrati": 36.0, "grassi": 32.0}
+    r = alimentazione._giorno_testo(oggi, totali, [yogurt, cotoletta], None)
+    atteso("Cena: 496 kcal, 22 g di proteine" in r and "(dal totale del giorno" in r and "Colazione: 90 kcal" in r,
+           "un cibo senza valori prende la differenza col totale", r)
+    r = alimentazione._giorno_testo(oggi, totali, [yogurt, cotoletta, {**cotoletta, "nome": "Lidl, Burger"}], None)
+    atteso("Senza valori nel dettaglio di Cronometer: Lidl, Cotoletta, Lidl, Burger; insieme fanno circa 496 kcal" in r,
+           "più cibi senza valori: la differenza a parte", r)
+
     # ingredienti delle ricette di Fit with Fun: il grano saraceno finiva su "parmigiano o grana", il cacao magro sullo
     # yogurt magro; dolcificanti e lievito non hanno kcal, le proteine alla vaniglia sì
     r = alimentazione.calcola_ricetta("farina di grano saraceno 100, cacao magro 10, albume 100, funghi 100, "
