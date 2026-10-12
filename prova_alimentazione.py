@@ -163,8 +163,8 @@ def main() -> int:
     atteso("Cena: 496 kcal, 22 g di proteine" in r and "(dal totale del giorno" in r and "Colazione: 90 kcal" in r,
            "un cibo senza valori prende la differenza col totale", r)
     r = alimentazione._giorno_testo(oggi, totali, [yogurt, cotoletta, {**cotoletta, "nome": "Lidl, Burger"}], None)
-    atteso("Senza valori nel dettaglio di Cronometer: Lidl, Cotoletta, Lidl, Burger; insieme fanno circa 496 kcal" in r,
-           "più cibi senza valori: la differenza a parte", r)
+    atteso("Lidl, Cotoletta, Lidl, Burger insieme fanno circa 496 kcal" in r and "Cena:\n- Lidl, Cotoletta (200.00 g)\n"
+           in r and "Colazione: 90 kcal" in r, "più cibi senza valori: la differenza a parte, pasto senza kcal", r)
 
     # ingredienti delle ricette di Fit with Fun: il grano saraceno finiva su "parmigiano o grana", il cacao magro sullo
     # yogurt magro; dolcificanti e lievito non hanno kcal, le proteine alla vaniglia sì

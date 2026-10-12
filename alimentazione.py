@@ -226,9 +226,10 @@ def _per_pasto_segnato(cibi: list[dict]) -> dict[str, list[dict]]:
 
 
 def _senza_valori(cibi: list[dict], totali: dict | None) -> tuple[list[dict], str]:
-    """Certi cibi di marca arrivano nel dettaglio di Cronometer senza valori, mentre il totale del giorno li conta (il
-    12/10 la cotoletta Lidl: 0 kcal nel dettaglio, 496 nel totale). Se ce n'è uno solo prende la differenza col
-    totale; se sono di più la differenza si dice a parte. Restituisce i cibi (copie) e la riga da aggiungere."""
+    """Con l'account gratuito l'esportazione dei cibi di Cronometer ha solo giorno, pasto, nome, quantità e categoria
+    (visto il 12/10 sul primo pasto vero): kcal e proteine ci sono solo nel totale del giorno. Se un cibo è senza
+    valori e è l'unico prende la differenza col totale; se sono di più la differenza si dice a parte. Restituisce i
+    cibi (copie) e la riga da aggiungere."""
     vuoti = [c for c in cibi if c["kcal"] < 1 and c["proteine"] < 0.1]
     if not vuoti or not totali:
         return cibi, ""
@@ -238,8 +239,10 @@ def _senza_valori(cibi: list[dict], totali: dict | None) -> tuple[list[dict], st
     if len(vuoti) == 1:
         cibi = [{**c, **resto, "dal_totale": True} if c is vuoti[0] else c for c in cibi]
         return cibi, ""
-    return cibi, (f"\nSenza valori nel dettaglio di Cronometer: {', '.join(c['nome'] for c in vuoti)}; insieme fanno "
-                  f"circa {resto['kcal']:.0f} kcal e {resto['proteine']:.0f} g di proteine (la differenza col totale).")
+    cibi = [{**c, "ignoti": True} if any(c is v for v in vuoti) else c for c in cibi]
+    return cibi, (f"\nCronometer non dà kcal e proteine dei singoli cibi (solo il totale del giorno): "
+                  f"{', '.join(c['nome'] for c in vuoti)} insieme fanno circa {resto['kcal']:.0f} kcal e "
+                  f"{resto['proteine']:.0f} g di proteine.")
 
 
 def _giorno_testo(giorno: datetime.date, totali: dict | None, cibi: list[dict], n: dict | None) -> str:
@@ -250,10 +253,13 @@ def _giorno_testo(giorno: datetime.date, totali: dict | None, cibi: list[dict], 
              f"carboidrati, {totali['grassi']:.0f} g di grassi.")
     cibi, nota = _senza_valori(cibi, totali)
     for pasto, suoi in _per_pasto_segnato(cibi).items():
+        if any(c.get("ignoti") for c in suoi):  # kcal del pasto non note: solo cosa ha mangiato
+            testo += f"\n{pasto}:\n" + "\n".join(f"- {c['nome']} ({c['quantita']})" for c in suoi)
+            continue
         testo += (f"\n{pasto}: {sum(c['kcal'] for c in suoi):.0f} kcal, {sum(c['proteine'] for c in suoi):.0f} g di "
                   "proteine\n" + "\n".join(f"- {c['nome']} ({c['quantita']}): {c['kcal']:.0f} kcal, "
                                            f"{c['proteine']:.0f} g di proteine"
-                                           + (" (dal totale del giorno: nel dettaglio di Cronometer è senza valori)"
+                                           + (" (dal totale del giorno: Cronometer non dà i valori dei singoli cibi)"
                                               if c.get("dal_totale") else "") for c in suoi))
     return testo + nota
 
@@ -285,7 +291,7 @@ def riepilogo(giorno: datetime.date) -> str:
         testo = (f"🍽 Oggi finora: {_su(t['kcal'], n, 'calorie', ' kcal')} e "
                  f"{_su(t['proteine'], n, 'proteine', ' g')} di proteine.")
         pasti = _per_pasto_segnato(_senza_valori(cronometer.cibi(giorno), t)[0])
-        if pasti:
+        if pasti and not any(c.get("ignoti") for suoi in pasti.values() for c in suoi):
             testo += "\n" + " · ".join(f"{p} {sum(c['kcal'] for c in suoi):.0f} kcal" for p, suoi in pasti.items())
         if n and t["proteine"] < n["proteine"] * 0.85:
             testo += (f" Proteine basse ({n['proteine'] - t['proteine']:.0f} g sotto): domani uno yogurt greco o due "
