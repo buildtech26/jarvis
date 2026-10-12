@@ -1,4 +1,5 @@
-"""La dispensa: il cibo che c'è in casa, nel database Notion "Dispensa", per le ricette con quello che c'è.
+"""La dispensa: il cibo che c'è in casa, nel database Notion "Dispensa", per le ricette con quello che c'è
+(mancano() dice quali ingredienti di una ricetta non ci sono).
 
 Il cibo entra con aggiorna_dispensa (un messaggio o la voce: "ho comprato pasta e 6 uova") ed esce dai pasti segnati
 in Cronometer: alle 21:30, e alle 10 del giorno dopo per i pasti segnati tardi, i cibi nuovi si scalano. I nomi di
@@ -282,6 +283,104 @@ def in_casa() -> str:
     finendo = [v["nome"] for v in voci if v["stato"] == "Sta finendo"]
     return ("In casa (dispensa su Notion, quantità indicative): " + "; ".join(f"{v['nome']} {_quanto(v)}" for v in voci)
             + "." + (f" Stanno finendo: {', '.join(finendo)}." if finendo else ""))
+
+
+# --- ingredienti di una ricetta: cosa manca in casa ---
+
+# le parole che non cambiano l'ingrediente: "tonno al naturale sgocciolato" è il tonno, "cacao magro in polvere" il cacao
+_GENERICA = re.compile(r"natural\w*|sgocciolat\w*|cott\w|crud\w|secc\w+|fresc\w+|light|magr\w|inter\w|integral\w|"
+                       r"tritat\w|grattugiat\w|polvere|preferit\w|basmati|sbucciat\w|scolat\w|battut\w|"
+                       r"denocciolat\w|piccol\w|baby|evo|sgusciat\w|tostat\w|scart\w|netto|peso|circa|tipo|scatol\w*|"
+                       r"q|b|g|gr|kg|ml")
+# le parole dopo queste fanno un altro cibo: "burro di arachidi" non è il burro, "latte alla nocciola" non è il latte
+_LEGANTI = {"di", "d", "del", "della", "dei", "delle", "al", "alla", "allo", "ai", "agli", "alle"}
+_VUOTE_RICETTE = _PAROLE_VUOTE | _LEGANTI | {"e", "a", "da", "per", "con", "o"}
+# stessi ingredienti con nomi diversi (fra ricette e dispensa); grana diventa parmigiano perché non sia grano
+_SINONIMI = [(r"\bparmigian\w*|\bgrana(?: padano)?\b|\bformaggio grattugiat\w*", "parmigiano"),
+             (r"\b(?:passata|polpa) di pomodor\w*", "salsa di pomodoro"),
+             (r"\b(?:album\w*|tuorl\w*|uov\w*)", "uova"), (r"\bpan(?:e)? gratt\w*", "pangrattato"),
+             (r"\bcarne macinat\w*|^\s*macinat\w*(?: magr\w)?(?: di (?:manzo|bovino|vitello))?", "carne macinata"), (r"\bdolcificant\w*", "zucchero"),
+             (r"\b(?:senza|non) zuccher\w*", " ")]
+# non si controllano: ci sono sempre, o "spezie preferite" vuol dire quelle che ci sono
+_SEMPRE = re.compile(r"\bsale\b|\bpepe\b|\bacqua\b|\bspezie\b|\berbe aromatic", re.I)
+_FORMATI_PASTA = {"spaghett", "penn", "fusill", "ditalin", "tortiglion", "mezz", "farfall", "gramign", "rigaton",
+                  "maccheron", "linguin", "orecchiett", "paccher", "tagliatell", "bucatin", "sedanin", "conchigli"}
+_FORME = {"fiocch", "gocc"}  # "avena" sta in Fiocchi d'avena, "cioccolato" in Gocce di cioccolato
+
+
+def _radice_parola(parola: str) -> str:
+    # pomodoro e pomodori, uovo e uova; più lunga di _radici, perché zucchina non è zucchero
+    return parola[:-1] if len(parola) > 3 and parola[-1] in "aeiouàèéìòù" else parola
+
+
+def _stessa(a: str, b: str) -> bool:
+    corta, lunga = sorted((a, b), key=len)
+    return a == b or (len(corta) >= 4 and lunga.startswith(corta) and lunga[len(corta):] in {"in", "ett", "ell"})
+
+
+def _parole_ricetta(testo: str) -> tuple[list[str], set[str]]:
+    """Le radici delle parole che contano e quelle che vengono subito dopo "di", "al"... (vedi _LEGANTI)."""
+    testo = testo.lower()
+    for vecchio, nuovo in _SINONIMI:
+        testo = re.sub(vecchio, nuovo, testo)
+    parole, legate, dopo_legante = [], set(), False
+    for p in re.findall(r"[a-zà-ù]+", testo):
+        if p in _VUOTE_RICETTE or _GENERICA.fullmatch(p):
+            dopo_legante = dopo_legante if _GENERICA.fullmatch(p) else p in _LEGANTI
+            continue
+        parole.append(_radice_parola(p))
+        if dopo_legante:
+            legate.add(parole[-1])
+        dopo_legante = False
+    return parole, legate
+
+
+def _alternative(testo: str) -> list[str]:
+    """'petto di pollo o tacchino' → le due; '(o spinaci)' è un'alternativa, '(leggi le note)' no."""
+    testo = testo.lower().replace("e/o", " o ")
+    alternative = re.split(r"/|\bo\b", re.sub(r"\([^)]*\)", " ", testo))
+    for dentro in re.findall(r"\(([^)]*)\)", testo):
+        if re.match(r"\s*o\b", dentro):
+            alternative += re.split(r"/|\bo\b", dentro)
+    return [a for a in alternative if a.strip()]
+
+
+def _c_e(sue: list[str], legate: set[str], in_casa: list[list[str]]) -> bool:
+    if "poll" in sue and any("poll" in v for v in in_casa):  # pollo: un taglio vale l'altro
+        return True
+    if sue == ["past"]:  # "pasta": un formato qualsiasi
+        return any(v[0] in _FORMATI_PASTA for v in in_casa)
+    for v in in_casa:
+        # tutte le sue parole nella voce ("tonno" → Tonno in scatola) con la stessa prima parola o una forma
+        # (non "patate" → Insaporitore per patate) ...
+        if ((_stessa(sue[0], v[0]) or v[0] in _FORME)
+                and all(any(_stessa(a, b) for b in v) for a in sue)):
+            return True
+        # ... o tutte quelle della voce nelle sue, con la stessa prima, se le altre non fanno un altro cibo
+        # ("grana padano" → Grana, "gocce di cioccolato fondente" → Gocce di cioccolato; non "burro di arachidi")
+        if _stessa(sue[0], v[0]) and all(any(_stessa(b, a) for a in sue) for b in v):
+            altre = [a for a in sue if not any(_stessa(a, b) for b in v)]
+            if not any(a in legate for a in altre):
+                return True
+    return False
+
+
+def mancano(ingredienti: list[str], voci: list[dict]) -> list[str]:
+    """Gli ingredienti di una ricetta che non sono in dispensa (o sono finiti); sale, pepe e acqua non si controllano.
+    Con le alternative ("petto di pollo o tacchino", "latte/acqua") ne basta una; un nome con le virgole
+    ("capperi, olive") sono più ingredienti."""
+    in_casa = [p for p, _ in (_parole_ricetta(v["nome"]) for v in voci if v["stato"] != "Finito") if p]
+    fuori = []
+    for ingrediente in ingredienti:
+        for pezzo in re.split(r",(?![^(]*\))", ingrediente):  # non le virgole fra parentesi
+            pezzo = pezzo.strip()
+            if not pezzo or _SEMPRE.search(pezzo):
+                continue
+            # "(o preferito)" non è un'alternativa: senza parole che contano non dice quale cibo
+            alternative = [p for p in map(_parole_ricetta, _alternative(pezzo)) if p[0]]
+            if alternative and not any(_c_e(sue, legate, in_casa) for sue, legate in alternative):
+                fuori.append(re.sub(r"\s*\([^)]*\)", "", pezzo).strip(" *"))
+    return fuori
 
 
 # --- Cronometer: quello che ha mangiato esce dalla dispensa ---

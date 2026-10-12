@@ -43,7 +43,7 @@ VERDURE = re.compile(r"spinac|pomodor|passata|pelati|zucchin|broccol|fagiolin|ca
                      r"peperon|melanzan|finocch|cipoll|aglio|fungh|champignon|minestron|bietol|cicori|zucca|piselli surgel|"
                      r"sedano", re.I)
 # vaniglia e cannella solo all'inizio: "proteine alla vaniglia" le kcal le ha
-SENZA_KCAL = re.compile(r"\bsale|\bpepe|spezie|origano|basilico|prezzemol|rosmarino|peperoncin|aceto|limone|\bacqua|"
+SENZA_KCAL = re.compile(r"\bsale|\bpepe\b|spezie|origano|basilico|prezzemol|rosmarino|peperoncin|aceto|limone|\bacqua|"
                         r"eritritol|xilitol|dolcificant|stevia|lievit|noce moscata|curcuma|"
                         r"^(?:aroma |estratto di )?vanigli|^cannella", re.I)
 UOVO = 50  # grammi di un uovo medio senza guscio: "uova 3" sono 3 uova, non 3 grammi
@@ -362,19 +362,38 @@ def mangiato(giorno: str = "oggi") -> str:
     return _giorno_testo(data, cronometer.giorni(data, data).get(data), cronometer.cibi(data), n)
 
 
+def _voci_dispensa() -> list[dict] | None:
+    """Le voci della dispensa su Notion; None se non è collegata, non si legge o è vuota (allora non si controlla)."""
+    if not dispensa.configurata():
+        return None
+    try:
+        return dispensa._voci() or None
+    except Exception:
+        return None
+
+
+def _non_in_casa(ingredienti: list[str], voci: list[dict] | None) -> list[str] | None:
+    """Gli ingredienti che non sono in dispensa, senza i facoltativi; None senza dispensa."""
+    if voci is None:
+        return None
+    return dispensa.mancano([i for i in ingredienti if "facoltativ" not in i.lower()], voci)
+
+
 def calcola_ricetta(ingredienti: str) -> str:
-    """Kcal e proteine di una ricetta, calcolate con i valori degli ingredienti della nota. Da usare per ogni ricetta
-    proposta: i totali da riportare sono questi.
+    """Kcal e proteine di una ricetta, calcolate con i valori degli ingredienti della nota, e gli ingredienti che non
+    sono in dispensa. Da usare per ogni ricetta proposta: i totali da riportare sono questi.
 
     Args:
         ingredienti: ingredienti a crudo con i grammi, separati da virgole, es. 'pasta 80, tonno al naturale 120,
             pomodori 200, olio 10'; le uova si contano a pezzi ('uova 3')
     """
     valori = _valori(_nota())
-    righe, mancano, kcal, proteine = [], [], 0.0, 0.0
+    righe, mancano, nomi, kcal, proteine = [], [], [], 0.0, 0.0
     for pezzo in re.split(r"[,;\n]", ingredienti):
         quanto = _numero(pezzo)
         nome = " ".join(re.sub(r"\d+(?:[.,]\d+)?|\b(?:g|gr|grammi|di|da|q\.?b\.?)\b", " ", pezzo).split()).strip(" .:-").lower()
+        if nome:
+            nomi.append(nome)  # anche limone e spezie: senza kcal, ma se mancano l'utente lo deve sapere
         if not nome or SENZA_KCAL.search(nome):
             continue
         voce = _trova(nome, valori)
@@ -389,6 +408,12 @@ def calcola_ricetta(ingredienti: str) -> str:
     if mancano:
         testo += (f"\nNon contati (non sono nella tabella della nota o manca la quantità): {', '.join(mancano)}. "
                   "Dillo all'utente.")
+    fuori = _non_in_casa(nomi, _voci_dispensa())
+    if fuori:
+        testo += (f"\nNON IN DISPENSA: {', '.join(fuori)}. Se è una ricetta da cucinare, avvisa l'utente che "
+                  "questi ingredienti non li ha in casa (e, se c'è, proponi un sostituto che ha).")
+    elif fuori is not None:
+        testo += "\nIn dispensa ci sono tutti gli ingredienti."
     return testo
 
 
@@ -414,7 +439,13 @@ def _html(testo: str) -> str:
     return " ".join(unescape(re.sub(r"(?s)<[^>]+>", " ", testo or "")).split())
 
 
-def _ricetta_testo(ricetta: dict, link: str) -> str:
+def _ingredienti(ricetta: dict) -> list[str]:
+    """I nomi degli ingredienti della ricetta, con "(facoltativo)" se lo dicono le note."""
+    return [_html(i.get("name")) + (" (facoltativo)" if "facoltativ" in (i.get("notes") or "").lower() else "")
+            for i in ricetta.get("ingredients_flat") or [] if i.get("type") != "group"]
+
+
+def _ricetta_testo(ricetta: dict, link: str, fuori: list[str] | None = None) -> str:
     kcal = (ricetta.get("nutrition") or {}).get("calories")
     porzioni = f"{ricetta.get('servings') or ''} {ricetta.get('servings_unit') or ''}".strip()
     testa = _html(ricetta["name"]) + (f" — {kcal} kcal a porzione secondo il sito" if kcal else " — kcal non indicate")
@@ -432,7 +463,8 @@ def _ricetta_testo(ricetta: dict, link: str) -> str:
                           if p.get("type") != "group" and _html(p.get("text")))
     if len(passaggi) > 600:
         passaggi = passaggi[:600].rsplit(" ", 1)[0] + "…"
-    return f"{testa}\nIngredienti: {'; '.join(ingredienti)}\nPassaggi: {passaggi}\nLink: {link}"
+    casa = "" if fuori is None else ("\nNon in dispensa: " + ", ".join(fuori) if fuori else "\nIn dispensa c'è tutto")
+    return f"{testa}\nIngredienti: {'; '.join(ingredienti)}{casa}\nPassaggi: {passaggi}\nLink: {link}"
 
 
 def _adatta(ricetta: dict, pasto: str) -> bool:
@@ -456,8 +488,17 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
     parole = [p for p in re.findall(r"[a-zà-ù]{3,}", cosa.lower()) if p not in NON_CERCARE]
     if not parole:
         return "Dimmi almeno un ingrediente o un tipo di piatto da cercare su Fit with Fun."
+    voci = _voci_dispensa()
+    fuori = {}  # id della ricetta → ingredienti che non sono in dispensa (None senza dispensa)
+
+    def mancanti(r: dict) -> int:
+        if r["id"] not in fuori:
+            fuori[r["id"]] = _non_in_casa(_ingredienti(r), voci)
+        return len(fuori[r["id"]] or [])
+
     try:
-        ricette = [r for r in _cerca_ricette(" ".join(parole), 20) if _adatta(r, pasto)]
+        # prima quelle con meno ingredienti che non sono in casa (sort stabile: a parità resta l'ordine del sito)
+        ricette = sorted((r for r in _cerca_ricette(" ".join(parole), 20) if _adatta(r, pasto)), key=mancanti)
         if not ricette and len(parole) > 1:
             # nessuna ricetta con tutte le parole: si cerca parola per parola e vincono quelle che ne hanno di più
             radici = {_radice(p) for p in parole}
@@ -468,7 +509,7 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
                     punti = sum(radice in testo.lower() for radice in radici)
                     if punti and _adatta(r, pasto):
                         trovate[r["id"]] = (punti, r)
-            ricette = [r for _, r in sorted(trovate.values(), key=lambda x: -x[0])]
+            ricette = [r for _, r in sorted(trovate.values(), key=lambda x: (-x[0], mancanti(x[1])))]
     except (requests.RequestException, ValueError, KeyError) as e:
         return f"Fit with Fun non risponde ({e}): proponi una ricetta tua e di' che non viene dal sito."
     if not ricette:
@@ -477,12 +518,17 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
     ricette = ricette[:3]
     articoli = [int(r.get("parent_post_id") or 0) for r in ricette]  # l'API lo dà a volte come stringa
     link = _link_ricette([a for a in articoli if a])
-    elenco = "\n\n".join(f"{n}. " + _ricetta_testo(r, link.get(a) or f"{FIT_WITH_FUN}/?p={a or r['id']}")
+    elenco = "\n\n".join(f"{n}. " + _ricetta_testo(r, link.get(a) or f"{FIT_WITH_FUN}/?p={a or r['id']}",
+                                                     fuori.get(r["id"]))
                          for n, (r, a) in enumerate(zip(ricette, articoli), 1))
+    casa = ("" if voci is None else " Preferisci quella con meno ingredienti \"Non in dispensa\". Per ognuno di "
+            "quelli della ricetta scelta di' SEMPRE all'utente che non ce l'ha in casa, anche se lo togli o lo "
+            "sostituisci (es. \"i piselli non li hai: li ho tolti\" o \"lo yogurt greco non ce l'hai: compralo o usa il "
+            "latte\").")
     return (f"Ricette da Fit with Fun:\n\n{elenco}\n\nProponi UNA di queste, non una ricetta tua: la più economica, meglio se senza proteine in polvere o "
             "prodotti di marca. Tieni i suoi ingredienti e i suoi passaggi, rifai le dosi per una persona e per le kcal "
             "del pasto, in grammi, e calcola kcal e proteine con calcola_ricetta. Di' che viene da Fit with Fun e dai "
-            "il link. Inventane una tua solo se nessuna di queste è un pasto vero, e in quel caso dillo.")
+            "il link. Inventane una tua solo se nessuna di queste è un pasto vero, e in quel caso dillo." + casa)
 
 
 STRUMENTI = [consigli_alimentazione, calcola_ricetta, ricette_fit_with_fun] + (

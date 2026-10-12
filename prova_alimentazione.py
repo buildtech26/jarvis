@@ -192,6 +192,19 @@ def main() -> int:
     atteso("Brownies" in r and "Burger" not in r, "solo le ricette da spuntino", r)
     r = alimentazione.ricette_fit_with_fun("ceci", "colazione")
     atteso("nessuna ricetta da colazione" in r, "niente da colazione", r)
+    atteso("dispensa" not in r.lower(), "senza dispensa non si parla di cosa manca", r)
+
+    # --- con la dispensa: prima la ricetta con meno ingredienti che mancano, e l'avviso ---
+    alimentazione._voci_dispensa = lambda: [{"nome": n, "stato": "C'è"} for n in ["Petto di pollo", "Piselli"]]
+    r = alimentazione.ricette_fit_with_fun("pollo")
+    atteso(r.index("Pollo e piselli") < r.index("Pollo al curry") and "In dispensa c'è tutto" in r
+           and "Non in dispensa: curry" in r and "di' SEMPRE" in r, "ricette ordinate per cosa c'è in casa", r)
+    r = alimentazione.calcola_ricetta("petto di pollo 150, piselli 100, limone 10, sale 1")
+    atteso("NON IN DISPENSA: limone." in r and "Totale" in r, "calcola_ricetta avvisa di cosa manca (sale no)", r)
+    r = alimentazione.calcola_ricetta("petto di pollo 150, piselli 100")
+    atteso("In dispensa ci sono tutti gli ingredienti." in r, "calcola_ricetta: c'è tutto", r)
+    r = alimentazione.calcola_ricetta("peperone 100")
+    atteso("(come verdure)" in r, "il peperone ha le kcal (non è pepe)", r)
 
     print(f"prova_alimentazione: errori {errori}")
     return 1 if errori else 0

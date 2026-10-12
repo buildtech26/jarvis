@@ -263,6 +263,27 @@ def main() -> int:
         dispensa.da_scontrino("PETTO POLLO AIA GR450 4,50")
     atteso(len(dispensa._carica()["attesa"]) == dispensa.IN_ATTESA, "liste in attesa limitate")
 
+    # --- ingredienti di una ricetta che non sono in casa (nomi veri di Fit with Fun e della dispensa del 12/10) ---
+    casa = [{"nome": n, "stato": "C'è"} for n in
+            ["Tonno in scatola", "Petto di pollo", "Grana", "Burro", "Latte", "Fiocchi d'avena", "Gocce di cioccolato",
+             "Salsa di pomodoro Mutti", "Uova", "Pangrattato", "Carne macinata", "Spaghetti", "Pomodori", "Zucchero",
+             "Insaporitore per patate", "Spinaci a cubetti", "Cipolle rosse", "Olio extravergine d'oliva", "Pasta brisè"]]
+    casa.append({"nome": "Ricotta", "stato": "Finito"})
+    ci_sono = ["tonno al naturale sgocciolato", "fesa di pollo o di tacchino", "grana padano o parmigiano",
+               "parmigiano grattugiato", "fiocchi di avena piccoli", "gocce di cioccolato fondente", "passata di pomodoro",
+               "albume", "uovo battuto", "pan grattato", "macinato magro di manzo (o preferito)", "pasta",
+               "pomodorini", "spinaci *", "cipolla", "olio evo", "olio extravergine di oliva", "latte/acqua",
+               "eritritolo (o dolcificante q.b.)", "sale e pepe", "acqua", "sale, pepe e spezie preferite"]
+    atteso(dispensa.mancano(ci_sono, casa) == [], "ingredienti che ci sono", dispensa.mancano(ci_sono, casa))
+    mancanti = ["burro di arachidi 100%", "latte di cocco fullfat", "latte alla nocciola", "grano saraceno",
+                "zucchina", "patate", "pasta fillo", "fiocchi di latte", "ricotta", "yogurt greco 2% (o preferito)",
+                "succo di limone", "pasta di lenticchie (o preferita, leggi note in fondo)"]
+    atteso(dispensa.mancano(mancanti, casa) == [m.replace(" (o preferito)", "").split(" (")[0] for m in mancanti],
+           "ingredienti che mancano (burro di arachidi non è burro, grano non è grana, zucchina non è zucchero, "
+           "patate non è l'insaporitore, ricotta finita)", dispensa.mancano(mancanti, casa))
+    atteso(dispensa.mancano(["capperi, olive, sale"], casa + [{"nome": "Olive", "stato": "C'è"}]) == ["capperi"],
+           "un nome con le virgole sono più ingredienti", dispensa.mancano(["capperi, olive, sale"], casa))
+
     print(f"prova_dispensa: errori {errori}")
     return 1 if errori else 0
 
