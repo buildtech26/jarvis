@@ -2,6 +2,7 @@
 import datetime
 import os
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -11,6 +12,11 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).with_name(".env"))
 
 _GIORNI = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+# eventi ripetuti: il 12/10 81 eventi creati 8 alla volta subito dopo altri 32 hanno fatto rispondere a Google "Hai
+# creato o eliminato troppi calendari o eventi di calendario in un breve intervallo di tempo", a metà serie
+INSIEME = 4  # creati in parallelo
+ATTESE = (10, 30, 60)  # secondi prima di riprovare dopo quel messaggio
+TROPPI = re.compile(r"troppi|too many|rate limit|riprova più tardi|try again later", re.I)
 
 
 def configurato() -> bool:
@@ -134,11 +140,48 @@ def _giorni_settimana(testo: str) -> list[int]:
     return sorted({_GIORNI.index(p[:3]) for p in re.findall(r"[a-zì]+", testo) if p[:3] in _GIORNI})
 
 
+def _eventi_periodo(primo: datetime.date, ultimo: datetime.date) -> list[dict]:
+    """Tutti gli eventi fra primo e ultimo (compresi), una richiesta a settimana in parallelo. Apps Script ne
+    restituisce al massimo 50: una settimana che arriva a 50 si rilegge giorno per giorno."""
+    def settimana(inizio: datetime.date) -> list[dict]:
+        fine = min(inizio + datetime.timedelta(days=6), ultimo)
+        trovati = _chiama("eventi", da=_iso(f"{inizio} 00:00"), a=_iso(f"{fine} 23:59"), cerca="")["eventi"]
+        if len(trovati) >= 50 and fine > inizio:
+            giorni = [inizio + datetime.timedelta(days=k) for k in range((fine - inizio).days + 1)]
+            trovati = [e for g in giorni for e in _chiama("eventi", da=_iso(f"{g} 00:00"), a=_iso(f"{g} 23:59"),
+                                                          cerca="")["eventi"]]
+        return trovati
+
+    inizi = [primo + datetime.timedelta(days=k) for k in range(0, (ultimo - primo).days + 1, 7)]
+    with ThreadPoolExecutor(max_workers=4) as esecutore:
+        # un evento a cavallo di due settimane torna due volte: si tiene una volta per id
+        return list({e["id"]: e for gruppo in esecutore.map(settimana, inizi) for e in gruppo}.values())
+
+
+def _crea_con_attesa(titolo: str, inizio: str, fine: str, luogo: str) -> dict | str:
+    """Crea un evento; se Google dice che se ne stanno creando troppi, aspetta e riprova (ATTESE). Restituisce
+    l'evento creato oppure il motivo per cui non c'è riuscito."""
+    for attesa in (*ATTESE, None):
+        try:
+            return _chiama("crea", titolo=titolo, inizio=inizio, fine=fine, luogo=luogo, tutto_il_giorno=False)["creato"]
+        except Exception as e:
+            if attesa is None or not TROPPI.search(str(e)):
+                return str(e).removeprefix("Exception: ")[:160]
+            time.sleep(attesa)
+    return "non creato"
+
+
+def _date(giorni: list[datetime.date]) -> str:
+    return ", ".join(f"{d:%d/%m}" for d in giorni)
+
+
 def crea_eventi_ripetuti(titolo: str, giorni: str, ora_inizio: str, ora_fine: str = "", dal: str = "", al: str = "",
                          luogo: str = "") -> str:
     """Impegno che si ripete ("ogni martedì e giovedì alle 20:30 fino a Natale"): crea un evento separato per ogni
-    giorno, MAI un solo evento lungo settimane. Giorni con orari diversi = una chiamata per ogni orario. Riporta
-    all'utente quanti eventi, i giorni e le sovrapposizioni come scritti nel risultato.
+    giorno, MAI un solo evento lungo settimane. Giorni con orari diversi = una chiamata per ogni orario. I giorni che
+    hanno già lo stesso evento alla stessa ora vengono saltati: per allungare una serie ("fino al 31 dicembre") basta
+    richiamarla con la nuova data di fine. Riporta all'utente quanti eventi, i giorni, le sovrapposizioni e gli
+    eventi NON CREATI esattamente come scritti nel risultato.
 
     Args:
         titolo: nome dell'evento
@@ -162,17 +205,38 @@ def crea_eventi_ripetuti(titolo: str, giorni: str, ora_inizio: str, ora_fine: st
         return f"Sarebbero {len(date)} eventi: troppi. Chiedi all'utente una data di fine più vicina."
     if not ora_fine:
         ora_fine = f"{datetime.datetime.strptime(ora_inizio, '%H:%M') + datetime.timedelta(hours=1):%H:%M}"
-    orari = [(_iso(f"{d} {ora_inizio}"), _iso(f"{d} {ora_fine}")) for d in date]
-    # Apps Script impiega ~3,5 s a richiesta e ne restituisce al massimo 50 eventi: creazione e controllo delle
-    # sovrapposizioni (prima della creazione, una richiesta per data) tutti in parallelo
-    with ThreadPoolExecutor(max_workers=8) as esecutore:
-        controlli = list(esecutore.map(lambda o: _sovrapposti(*(_locale(x).strftime("%Y-%m-%d %H:%M") for x in o)), orari))
-        creati = list(esecutore.map(lambda o: _chiama("crea", titolo=titolo, inizio=o[0], fine=o[1], luogo=luogo,
-                                                      tutto_il_giorno=False)["creato"], orari))
-    sovrapposti = [_riga(ev) for trovati in controlli for ev in trovati if ev["titolo"] != titolo]
+    orari = [(d, _iso(f"{d} {ora_inizio}"), _iso(f"{d} {ora_fine}")) for d in date]
+    # gli eventi già in calendario servono due volte: per non duplicare (il 12/10 "mettilo fino al 31 dicembre" aveva
+    # ricreato i 32 giorni già fatti) e per le sovrapposizioni. Apps Script impiega ~3,5 s a richiesta
+    try:
+        esistenti = _eventi_periodo(date[0], date[-1])
+        controllati = True
+    except Exception as e:
+        print(f"[calendario] eventi esistenti non letti: {e}")
+        esistenti, controllati = [], False
+    stesso = titolo.strip().lower()
+    gia = {d for d, inizio, _ in orari
+           if any(e["titolo"].strip().lower() == stesso and _locale(e["inizio"]) == _locale(inizio) for e in esistenti)}
+    da_creare = [o for o in orari if o[0] not in gia]
+    with ThreadPoolExecutor(max_workers=INSIEME) as esecutore:
+        esiti = list(esecutore.map(lambda o: _crea_con_attesa(titolo, o[1], o[2], luogo), da_creare))
+    creati = [o[0] for o, esito in zip(da_creare, esiti) if isinstance(esito, dict)]
+    falliti = [(o[0], esito) for o, esito in zip(da_creare, esiti) if not isinstance(esito, dict)]
+    sovrapposti = list(dict.fromkeys(
+        _riga(e) for d, inizio, fine in orari for e in esistenti
+        if not e["tutto_il_giorno"] and e["titolo"].strip().lower() != stesso
+        and _locale(e["inizio"]) < _locale(fine) and _locale(e["fine"]) > _locale(inizio)))
     nomi = " e ".join(_GIORNI[n] for n in numeri)
     testo = (f"Creati {len(creati)} eventi '{titolo}', {nomi} {ora_inizio}-{ora_fine}, dal {date[0]:%d/%m} al "
-             f"{date[-1]:%d/%m}: {', '.join(f'{d:%d/%m}' for d in date)}.")
+             f"{date[-1]:%d/%m}" + (f": {_date(creati)}." if creati else "."))
+    if gia:
+        testo += f"\nC'erano già (non duplicati): {len(gia)} giorni, {_date(sorted(gia))}."
+    if not controllati:
+        testo += "\nNon ho potuto controllare se alcuni c'erano già: potrebbero esserci doppioni."
+    if falliti:
+        testo += (f"\nNON CREATI {len(falliti)}: {_date([d for d, _ in falliti])}. Motivo: {falliti[0][1]}. Dillo "
+                  "all'utente con queste date: si può riprovare più tardi con la stessa richiesta, i giorni già fatti "
+                  "non si duplicano.")
     if sovrapposti:
         testo += "\nATTENZIONE, si sovrappongono a:\n" + "\n".join(sovrapposti)
     return testo

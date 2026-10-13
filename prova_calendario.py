@@ -97,7 +97,34 @@ def main() -> int:
     atteso(calendario._giorni_settimana("mar, gio e ven") == [1, 3, 4] and calendario._giorni_settimana("boh") == [],
            "nomi dei giorni", "")
 
-    print(f"7 casi, errori: {errori}")
+    # 8. il caso del 12/10: "tutti i giorni alle 22" fino al 12/11, poi "fino al 31 dicembre". I giorni già fatti non
+    # si duplicano; quando Google dice "troppi eventi" si aspetta e si riprova; quelli che non vanno sono elencati
+    calendario.ATTESE = (0, 0, 0)
+    troppi = "Exception: Hai creato o eliminato troppi calendari o eventi di calendario in un breve intervallo di tempo."
+    fatti = [{"id": f"f{k}", "titolo": "Compilare il form di Baldini", "tutto_il_giorno": False, "luogo": "",
+              "calendario": "mio", "inizio": calendario._iso(f"2026-10-{12 + k} 22:00"),
+              "fine": calendario._iso(f"2026-10-{12 + k} 23:00")} for k in range(3)]  # 12, 13 e 14/10
+    creati.clear()
+    rifiuti = {"2026-10-16": 1, "2026-10-17": 99}  # il 16 va al secondo tentativo, il 17 mai
+
+    def chiama(azione: str, **d) -> dict:
+        if azione == "eventi":
+            a, b = calendario._locale(d["da"]), calendario._locale(d["a"])
+            return {"eventi": [e for e in fatti if a <= calendario._locale(e["inizio"]) < b]}
+        giorno = d["inizio"][:10]
+        if rifiuti.get(giorno, 0) > 0:
+            rifiuti[giorno] -= 1
+            raise RuntimeError(troppi)
+        creati.append(d)
+        return {"creato": {"id": f"n{len(creati)}", **d, "calendario": "mio"}}
+    calendario._chiama = chiama
+    r = calendario.crea_eventi_ripetuti("Compilare il form di Baldini", "tutti", "22:00", "", "2026-10-12", "2026-10-18")
+    giorni = sorted(c["inizio"][:10] for c in creati)
+    atteso(giorni == ["2026-10-15", "2026-10-16", "2026-10-18"], f"creati solo i giorni nuovi: {giorni}", r)
+    atteso("Creati 3 eventi" in r and "C'erano già (non duplicati): 3 giorni, 12/10, 13/10, 14/10" in r
+           and "NON CREATI 1: 17/10" in r and "troppi" in r and "ATTENZIONE" not in r, "testo del risultato", r)
+
+    print(f"8 casi, errori: {errori}")
     return 1 if errori else 0
 
 
