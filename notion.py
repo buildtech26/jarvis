@@ -225,8 +225,13 @@ def aggiorna_indice() -> str:
 
 def ciclo_indice():
     """Thread di Jarvis: aggiorna l'indice poco dopo l'avvio e poi ogni 3 ore."""
+    import rete
+
     time.sleep(60)  # non subito: all'avvio la rete del PC appena acceso può non esserci ancora
     while True:
+        if not rete.disponibile():  # al risveglio dallo standby: si riprova fra 5 minuti, non fra 3 ore
+            time.sleep(300)
+            continue
         try:
             print(aggiorna_indice())
         except Exception as e:

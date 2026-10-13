@@ -22,6 +22,7 @@ import parcheggio
 import posta
 import promemoria
 import quota
+import rete
 import riavvio
 import ritardi
 import voice
@@ -46,6 +47,8 @@ class BotTelegram:
         self.file_api = f"https://api.telegram.org/file/bot{token}"
         self.utente = utente_autorizzato
         self.aggiornamento = 0  # update_id del messaggio in gestione
+        self.coda: list[tuple[str, list | None]] = []  # messaggi automatici non partiti per la rete (consegna)
+        self._coda_lock = threading.Lock()
 
     def invia(self, chat_id, testo, tastiera=False):
         # Telegram rifiuta messaggi oltre 4096 caratteri
@@ -98,36 +101,65 @@ class BotTelegram:
                           timeout=30)
             self.jarvis.aggiungi_scambio("telegram", "(pulsante della lista per la dispensa)", testo)
 
+    def consegna(self, testo, pulsanti=None):
+        """Un messaggio automatico all'utente. I giri lo segnano come mandato appena lo restituiscono (riepilogo,
+        domanda "fatto?", promemoria tolto dall'elenco): se la rete cade proprio allora resta in coda e riparte
+        appena torna, invece di perdersi."""
+        try:
+            self.invia_pulsanti(self.utente, testo, pulsanti) if pulsanti else self.invia(self.utente, testo)
+        except requests.RequestException as e:
+            print(f"[telegram] messaggio in coda, rete assente ({type(e).__name__}): {testo[:60]!r}")
+            with self._coda_lock:
+                self.coda.append((testo, pulsanti))
+
+    def _rete_pronta(self) -> bool:
+        """Prima di ogni giro automatico: senza rete il giro salta il minuto; con la rete parte la coda."""
+        if not rete.disponibile():
+            return False
+        with self._coda_lock:
+            coda, self.coda = self.coda, []
+        for i, (testo, pulsanti) in enumerate(coda):
+            try:
+                self.invia_pulsanti(self.utente, testo, pulsanti) if pulsanti else self.invia(self.utente, testo)
+            except requests.RequestException:
+                with self._coda_lock:
+                    self.coda = coda[i:] + self.coda
+                return False
+        return True
+
     def ciclo_allenamento(self):
         """Pianificazione della settimana e domande "fatto?" dopo le sedute (allenamento.py), una volta al minuto."""
         while True:
-            try:
-                for testo, pulsanti in allenamento.controlla():
-                    self.invia_pulsanti(self.utente, testo, pulsanti)
-            except Exception as e:
-                print(f"[allenamento] errore: {e}")
+            if self._rete_pronta():
+                try:
+                    for testo, pulsanti in allenamento.controlla():
+                        self.consegna(testo, pulsanti)
+                except Exception as e:
+                    print(f"[allenamento] errore: {e}")
             time.sleep(60)
 
     def ciclo_alimentazione(self):
         """Il riepilogo delle 21:30 con i dati di Cronometer (alimentazione.py), i pasti tolti dalla dispensa
         (dispensa.py) e i consigli per la spesa del sabato (spesa.py), controllati una volta al minuto."""
         while True:
-            for modulo in (alimentazione, dispensa, spesa):
-                try:
-                    for testo in modulo.controlla():
-                        self.invia(self.utente, testo)
-                except Exception as e:
-                    print(f"[{modulo.__name__}] errore: {e}")
+            if self._rete_pronta():
+                for modulo in (alimentazione, dispensa, spesa):
+                    try:
+                        for testo in modulo.controlla():
+                            self.consegna(testo)
+                    except Exception as e:
+                        print(f"[{modulo.__name__}] errore: {e}")
             time.sleep(60)
 
     def ciclo_controllo(self):
         """Il controllo dei servizi esterni del mattino (controllo.py): arriva un messaggio solo se qualcosa è rotto."""
         while True:
-            try:
-                for testo in controllo.controlla():
-                    self.invia(self.utente, testo)
-            except Exception as e:
-                print(f"[controllo] errore: {e}")
+            if self._rete_pronta():  # senza rete il controllo darebbe tutto rotto
+                try:
+                    for testo in controllo.controlla():
+                        self.consegna(testo)
+                except Exception as e:
+                    print(f"[controllo] errore: {e}")
             time.sleep(60)
 
     def manda_parcheggio(self, chat_id):
@@ -326,16 +358,18 @@ class BotTelegram:
 
     def ciclo_promemoria(self):
         while True:
-            try:
-                for messaggio in promemoria.scaduti():
-                    self.invia(self.utente, messaggio)  # in chat privata l'id della chat è l'id dell'utente
-            except Exception as e:
-                print(f"[promemoria] errore: {e}")
-            try:
-                for messaggio in ritardi.controlla():  # ogni treno seguito viene interrogato al massimo ogni 5 min
-                    self.invia(self.utente, messaggio)
-            except Exception as e:
-                print(f"[ritardi] errore: {e}")
+            # senza rete il promemoria resta nell'elenco e arriva appena torna (prima veniva tolto e perso)
+            if self._rete_pronta():
+                try:
+                    for messaggio in promemoria.scaduti():
+                        self.consegna(messaggio)  # in chat privata l'id della chat è l'id dell'utente
+                except Exception as e:
+                    print(f"[promemoria] errore: {e}")
+                try:
+                    for messaggio in ritardi.controlla():  # ogni treno seguito viene interrogato al massimo ogni 5 min
+                        self.consegna(messaggio)
+                except Exception as e:
+                    print(f"[ritardi] errore: {e}")
             time.sleep(20)
 
     def presenta_pulsante(self):
