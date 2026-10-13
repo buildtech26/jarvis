@@ -5,6 +5,7 @@
 I casi "inventati" vengono dal diario del 07/10; quelli "buoni" sono risposte corrette che non devono far scattare
 un secondo tentativo (ogni falso allarme costa una richiesta Gemini e un avviso inutile).
 """
+import datetime
 import sys
 
 import verifica
@@ -23,6 +24,8 @@ RICETTE = ("ricette_fit_with_fun: Ricette da Fit with Fun:\n\n1. Cous Cous o Ris
            "Link: https://fitwithfun.it/cous-cous-o-riso-di-cavolfiore-low-carb-e-senza-glutine/\n\n"
            "2. Pancake Proteici — 375 kcal a porzione secondo il sito\nNon in dispensa: fragole\n"
            "Link: https://fitwithfun.it/pancake-proteici/")
+CALENDARIO = ("eventi_calendario: gio 15/10 20:30-21:30 Lezione con Baldini\nsab 17/10 07:30-08:15 Allenamento: "
+              "Corpo libero A\ndom 18/10 10:00-11:00 Allenamento: Tennis")
 CALCOLO = ("calcola_ricetta: cous cous 70 g: 252 kcal\ntonno in scatola 120 g: 228 kcal\npomodori 150 g: 41 kcal\n"
            "olio 10 g: 90 kcal\nTotale: 610 kcal e 41 g di proteine.")
 
@@ -88,10 +91,25 @@ CASI = [
      [CALCOLO, "Obiettivi al giorno: circa 2100 kcal. Per pranzo: circa 740 kcal"], ["calcola_ricetta"], [CALCOLO], []),
     # domanda generica senza strumenti di cibo: le kcal non si controllano
     ("Una banana ha circa 90 kcal.", ["quante calorie ha una banana?"], [], [], []),
+    # --- date e calendario (oggi = martedì 13/10/2026) ---
+    # prova della riserva del 12/10: da "martedì" un giorno avanti
+    ("Martedì 15/10 hai la lezione con Baldini alle 20:30.", [CALENDARIO, "che lezioni ho martedì?"],
+     ["eventi_calendario"], [CALENDARIO], ["martedì 15/10", "giovedì"]),
+    ("Sabato 18 ottobre giochi a tennis alle 10:00.", [CALENDARIO], ["eventi_calendario"], [CALENDARIO],
+     ["sabato 18 ottobre"]),
+    ("Giovedì 15/10 alle 20:30 lezione con Baldini, sab 17/10 corpo libero alle 07:30 e domenica 18 ottobre tennis "
+     "alle 10:00.", [CALENDARIO], ["eventi_calendario"], [CALENDARIO], []),
+    ("Il 31 dicembre 2025 era mercoledì 31/12/2025.", ["che giorno era capodanno?"], [], [], []),
+    # vero, 12/10: il tennis c'era
+    ("Non hai annotato alcun impegno per la prossima domenica, quindi hai la giornata libera.",
+     ["cosa devo fare prossima domenica"], [], [], ["senza aver letto il calendario"]),
+    ("Domenica non hai impegni, a parte il tennis alle 10:00.", [CALENDARIO, "e domenica?"], [], [], []),
+    ("Se non hai impegni, approfittane per correre.", ["sono stanco"], [], [], []),
 ]
 
 
 def main() -> int:
+    verifica._oggi = lambda: datetime.date(2026, 10, 13)
     errori = 0
     for risposta, fonti, usati, ora, attesi, *prima in CASI:
         dubbi = verifica.controlla(risposta, fonti, usati, ora, bool(prima and prima[0]))

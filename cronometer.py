@@ -14,6 +14,7 @@ import json
 import os
 import re
 import threading
+import time
 from pathlib import Path
 
 import requests
@@ -37,6 +38,9 @@ _lock = threading.Lock()
 _http = requests.Session()
 _http.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Jarvis"
 _stato: dict = {}  # nonce, utente, permutation, header
+CACHE = 60  # secondi in cui un'esportazione già fatta vale ancora (un pasto segnato adesso si vede al più 1 min dopo)
+ATTESA_429 = 8  # secondi prima di riprovare un'esportazione rifiutata per troppe richieste
+_cache: dict[tuple, tuple[float, list[dict]]] = {}  # (tipo, da, a) → (time.monotonic(), righe)
 
 
 class _Scaduta(Exception):
@@ -138,23 +142,35 @@ def _token() -> str:
 
 
 def _esporta(tipo: str, da: datetime.date, a: datetime.date) -> list[dict]:
-    """Un CSV di /export ('dailySummary' o 'servings') come righe."""
+    """Un CSV di /export ('dailySummary' o 'servings') come righe. Le stesse righe valgono CACHE secondi: il 13/10
+    quattro esportazioni in pochi secondi hanno dato 429, e una domanda sul cibo, il riepilogo delle 21:30 e lo
+    scarico della dispensa leggono gli stessi giorni."""
+    chiave = (tipo, da, a)
     with _lock:
-        try:
-            if not _ripristina():
+        salvato = _cache.get(chiave)
+        if salvato and time.monotonic() - salvato[0] < CACHE:
+            return list(salvato[1])
+        for tentativo in range(2):
+            try:
+                if not _ripristina():
+                    _accedi()
+                token = _token()
+            except (_Scaduta, requests.HTTPError):
                 _accedi()
-            token = _token()
-        except (_Scaduta, requests.HTTPError):
-            _accedi()
-            token = _token()
-        r = _http.get(f"{SITO}/export", timeout=30, params={"nonce": token, "generate": tipo, "start": str(da),
-                                                             "end": str(a)})
-    r.raise_for_status()
-    testo = r.text.lstrip("﻿")
-    if testo.lstrip().startswith("<"):
-        raise RuntimeError("Cronometer non dà l'esportazione dei dati (pagina web al posto del CSV): l'account "
-                           "potrebbe non essere Gold.")
-    return list(csv.DictReader(io.StringIO(testo)))
+                token = _token()
+            r = _http.get(f"{SITO}/export", timeout=30, params={"nonce": token, "generate": tipo, "start": str(da),
+                                                                 "end": str(a)})
+            if r.status_code != 429 or tentativo:
+                break
+            time.sleep(ATTESA_429)  # troppe richieste: una sola attesa breve, poi l'errore
+        r.raise_for_status()
+        testo = r.text.lstrip("﻿")
+        if testo.lstrip().startswith("<"):
+            raise RuntimeError("Cronometer non dà l'esportazione dei dati (pagina web al posto del CSV): l'account "
+                               "potrebbe non essere Gold.")
+        righe = list(csv.DictReader(io.StringIO(testo)))
+        _cache[chiave] = (time.monotonic(), righe)
+        return list(righe)
 
 
 def _colonna(riga: dict, *inizi: str) -> float:

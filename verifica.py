@@ -54,6 +54,25 @@ _RICERCA = re.compile(r"\bho (?:cercato|controllato|verificato|letto|trovato|gua
 _KCAL = re.compile(rf"({_NUM})\s*(?:kcal|calorie)\b", re.I)
 # dubbio sugli ingredienti di una ricetta di Fit with Fun che non sono in dispensa e la risposta non nomina
 MANCANTI = "non hai detto che in casa non ci sono: "
+# giorno della settimana che non corrisponde alla data: la riserva Mistral sbagliava di un giorno 6 volte su 8
+# ("martedì 15/10", che è giovedì). Si controlla senza fonti: una coppia così è sbagliata e basta
+DATA_SBAGLIATA = "giorno della settimana sbagliato: "
+_GIORNI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
+_MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre",
+         "novembre", "dicembre"]
+_GIORNO_DATA = re.compile(r"\b(lunedì|lunedi|martedì|martedi|mercoledì|mercoledi|giovedì|giovedi|venerdì|venerdi|"
+                          r"sabato|domenica|lun|mar|mer|gio|ven|sab|dom)\.?,?\s+(?:il\s+)?(\d{1,2})"
+                          r"(?:/(\d{1,2})(?:/(\d{4}|\d{2}))?|\s+(" + "|".join(_MESI) + r"))\b", re.I)
+# impegni dati per assenti senza aver letto il calendario: il 12/10 "Non hai annotato alcun impegno per la prossima
+# domenica" con il tennis in calendario. "se non hai impegni, ..." è un consiglio, non un'affermazione
+_ASSENZA = re.compile(r"(?<!se )\bnon hai (?:(?:annotato |segnato |in calendario )?(?:alcun|nessun)\w* |altri |)"
+                      r"(?:impegn|appuntament|eventi|lezion|allenament|niente in (?:calendario|programma)|"
+                      r"nulla in (?:calendario|programma))\w*|\bnessun (?:impegno|appuntamento|evento|allenamento)\b|"
+                      r"\bsei liber[oa]\b|\bgiornata libera\b|\bnon c'è (?:niente|nulla) in (?:calendario|programma)",
+                      re.I)
+SENZA_CALENDARIO = " senza aver letto il calendario"
+_LEGGONO_CALENDARIO = re.compile(r"\b(?:eventi_calendario|seduta_allenamento|allenamenti_settimana|crea_evento|"
+                                 r"crea_eventi_ripetuti|sposta_evento):")
 
 
 def _valori(num: str) -> set[float]:
@@ -91,6 +110,26 @@ def _kcal_senza_fonte(risposta: str, tutto: str) -> list[str]:
     calcolati = fonte + [abs(a - b) for a in fonte for b in fonte]
     return [f"{m.group(1)} kcal" for m in _KCAL.finditer(risposta)
             if not any(abs(v - c) <= max(5.0, 0.03 * c) for v in _valori(m.group(1)) for c in calcolati)]
+
+
+def _oggi() -> datetime.date:  # le prove la sostituiscono
+    return datetime.date.today()
+
+
+def _date_sbagliate(risposta: str) -> list[str]:
+    """'martedì 15/10' quando il 15/10 è giovedì. Senza anno vale la data più vicina a oggi."""
+    oggi, sbagliate = _oggi(), []
+    for m in _GIORNO_DATA.finditer(risposta):
+        nome, giorno = m.group(1).lower()[:3], int(m.group(2))
+        mese = int(m.group(3)) if m.group(3) else _MESI.index(m.group(5).lower()) + 1
+        anni = [int(m.group(4)) + (2000 if len(m.group(4)) == 2 else 0)] if m.group(4) else [oggi.year + d for d in (-1, 0, 1)]
+        try:
+            data = min((datetime.date(a, mese, giorno) for a in anni), key=lambda d: abs((d - oggi).days))
+        except ValueError:  # 31/02 e simili: non è un giorno della settimana sbagliato, lo lascio stare
+            continue
+        if _GIORNI[data.weekday()][:3] != nome:
+            sbagliate.append(f"{m.group(0).strip()} (il {data:%d/%m/%Y} è {_GIORNI[data.weekday()]})")
+    return sbagliate
 
 
 def _radice(parola: str) -> str:
@@ -154,6 +193,10 @@ def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risul
     dubbi += _kcal_senza_fonte(risposta, tutto)
     if taciuti := _mancanti_taciuti(risposta, risultati_ora):
         dubbi.append(MANCANTI + ", ".join(taciuti))
+    dubbi += [DATA_SBAGLIATA + d for d in _date_sbagliate(risposta)]
+    # le fonti con il calendario possono essere anche delle ultime domande ("e domenica?" dopo "cosa ho sabato")
+    if (m := _ASSENZA.search(risposta)) and not _LEGGONO_CALENDARIO.search(tutto):
+        dubbi.append(f"«{m.group(0)}»{SENZA_CALENDARIO}")
 
     if not strumenti_usati:
         if ((m := _AZIONE.search(risposta)) or (m := _PROMESSA.search(risposta))
@@ -167,8 +210,16 @@ def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risul
 def correzione(dubbi: list[str]) -> str:
     """Messaggio per il secondo tentativo: arriva a Gemini come se fosse un turno dell'utente."""
     mancanti = [d[len(MANCANTI):] for d in dubbi if d.startswith(MANCANTI)]
-    dati = [d for d in dubbi if not d.startswith(MANCANTI)]
+    date = [d[len(DATA_SBAGLIATA):] for d in dubbi if d.startswith(DATA_SBAGLIATA)]
+    assenze = [d for d in dubbi if d.endswith(SENZA_CALENDARIO)]
+    dati = [d for d in dubbi if not d.startswith((MANCANTI, DATA_SBAGLIATA)) and d not in assenze]
     testo = "[Controllo automatico, non è l'utente a scrivere]"
+    if date:
+        testo += (f" Il giorno della settimana non corrisponde alla data: {'; '.join(date)}. Ricontrolla le date "
+                  "con lo strumento e correggile.")
+    if assenze:
+        testo += (" Hai detto che un impegno non c'è senza aver letto il calendario: leggilo con eventi_calendario "
+                  "(gli allenamenti sono eventi del calendario) e rispondi da lì.")
     if dati:
         testo += (f" Nella risposta ci sono dati che non vengono da nessuno strumento né dalla conversazione: "
                   f"{'; '.join(dati)}. Se servono, chiama lo strumento che li verifica. Altrimenti riscrivi la "
@@ -198,10 +249,16 @@ def registra(domanda: str, strumenti: list[str], risultati: list[str], precedent
 
 def con_avviso(risposta: str, dubbi: list[str]) -> str:
     """Ultima difesa dopo il secondo tentativo: la risposta resta, ma con un avviso che si legge anche a voce."""
-    azioni = [d for d in dubbi if d.startswith("«")]
+    assenze = [d for d in dubbi if d.endswith(SENZA_CALENDARIO)]
+    azioni = [d for d in dubbi if d.startswith("«") and d not in assenze]
     mancanti = [d[len(MANCANTI):] for d in dubbi if d.startswith(MANCANTI)]
-    dati = [d for d in dubbi if not d.startswith(("«", MANCANTI))]
+    date = [d[len(DATA_SBAGLIATA):] for d in dubbi if d.startswith(DATA_SBAGLIATA)]
+    dati = [d for d in dubbi if not d.startswith(("«", MANCANTI, DATA_SBAGLIATA))]
     avvisi = []
+    if date:
+        avvisi.append(f"controlla le date, {'; '.join(date)}")
+    if assenze:
+        avvisi.append("non ho guardato il calendario, quindi non so se hai impegni")
     if dati:
         avvisi.append(f"non ho una fonte per {', '.join(dati)}")
     if azioni:
