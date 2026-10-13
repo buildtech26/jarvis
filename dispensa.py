@@ -503,9 +503,11 @@ def scala(giorno: datetime.date) -> str:
         return ""
     voci = [v for v in _voci() if (v["quantita"] or 0) > 0]
     tolti: dict[str, float] = {}
+    saltati = []  # cibi che non vengono da nessuna voce: prima si perdevano in silenzio
     if voci:
         for cibo, voce, togli in _abbina(nuovi, voci):
             if voce is None:
+                saltati.append(cibo)
                 continue
             tolti[voce["id"]] = tolti.get(voce["id"], 0) + togli
             if cibo["nome"].lower() not in (n.lower() for n in voce["cronometer"]):
@@ -525,10 +527,20 @@ def scala(giorno: datetime.date) -> str:
         _cambia(voce, **campi)
     stato[str(giorno)] = stato.get(str(giorno), []) + [_chiave(c) for c in nuovi]
     _salva(stato)
+    # il 13/10 il pranzo era una ricetta creata in Cronometer ("Pranzo", 1.00 full recipe): l'esportazione gratuita
+    # ne dà solo il nome, Gemini non l'ha abbinata e la dispensa è rimasta com'era senza dirlo
+    ricette = [c for c in saltati if "recipe" in c["quantita"].lower()]
+    altri = [c for c in saltati if c not in ricette]
+    nota = ""
+    if ricette:
+        nota += (f" Non ho tolto {', '.join(c['nome'] for c in ricette)}: è una ricetta creata in Cronometer e mi "
+                 "arriva solo il nome. Se vuoi che la tolga, segna gli ingredienti uno per uno o dimmi cosa c'era.")
+    if altri:
+        nota += f" Non vengono dalla dispensa: {', '.join(c['nome'] for c in altri)}."
     if not righe:
-        return ""
+        return f"🥫 Dalla dispensa non ho tolto niente.{nota}" if nota else ""
     return ("🥫 Dalla dispensa ho tolto: " + ", ".join(righe) + "."
-            + (f" Finiti: {', '.join(finiti)}." if finiti else ""))
+            + (f" Finiti: {', '.join(finiti)}." if finiti else "") + nota)
 
 
 def controlla() -> list[str]:

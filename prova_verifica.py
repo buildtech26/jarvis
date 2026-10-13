@@ -16,6 +16,15 @@ VOLI = ("esplora_voli: CRITERI USATI: da BLQ, 13-17/11, 3 notti\n"
 RYANAIR = "cerca_voli: 16.99 € | Ryanair | BLQ 06:25 → TIA 08:10\n14.99 € | Ryanair | TIA 21:05 → BLQ 22:50"
 SPESE = "spese_riepilogo: Mese: 1.234,56 € spesi, Spesa 312,40 €, Ristoranti 98,00 €"
 TRENI = "cerca_treni: Frecciarossa 9409 | 14:10 → 16:25 | da 39 €\nItalo 8911 | 14:35 → 16:40"
+RICETTE = ("ricette_fit_with_fun: Ricette da Fit with Fun:\n\n1. Cous Cous o Riso di Cavolfiore Low Carb — 50 kcal a "
+           "porzione secondo il sito\nIngredienti: 200 g cavolfiore; 100 g pomodorini; 100 g tonno al naturale; 5 g olio "
+           "extravergine di oliva; 40 g avocado; q.b. Succo e Scorza di Limone; q.b. zenzero fresco; q.b. menta fresca\n"
+           "Non in dispensa: cavolfiore, avocado, Succo e Scorza di Limone, zenzero fresco, menta fresca\n"
+           "Link: https://fitwithfun.it/cous-cous-o-riso-di-cavolfiore-low-carb-e-senza-glutine/\n\n"
+           "2. Pancake Proteici — 375 kcal a porzione secondo il sito\nNon in dispensa: fragole\n"
+           "Link: https://fitwithfun.it/pancake-proteici/")
+CALCOLO = ("calcola_ricetta: cous cous 70 g: 252 kcal\ntonno in scatola 120 g: 228 kcal\npomodori 150 g: 41 kcal\n"
+           "olio 10 g: 90 kcal\nTotale: 610 kcal e 41 g di proteine.")
 
 # (risposta, fonti, strumenti usati in questa domanda, risultati di questa domanda, dubbi attesi: parole che devono
 # comparire tra i dubbi; lista vuota = nessun dubbio)
@@ -62,6 +71,23 @@ CASI = [
     ("Ho cercato solo su Ryanair. Se preferisci apro Google Flights per le altre compagnie.",
      [VOLI, "hai guardato solo ryanair?"], [], [], [], True),
     ("Ho impostato la ricerca per tre notti.", [VOLI, "puoi cercare per tre notti"], [], [], ["ho impostato"], True),
+    # --- cibo (13/10) ---
+    # vero: ricetta di cavolfiore data come cous cous, senza dire cosa mancava
+    ("Ecco la ricetta del cous cous freddo con tonno e pomodori, presa da Fit with Fun: 70 g di cous cous, 120 g di "
+     "tonno, 150 g di pomodori e 10 g di olio, per un totale di 610 kcal. Trovi l'originale su "
+     "https://fitwithfun.it/cous-cous-o-riso-di-cavolfiore-low-carb-e-senza-glutine/.",
+     [RICETTE, CALCOLO], ["ricette_fit_with_fun", "calcola_ricetta"], [RICETTE, CALCOLO],
+     ["cavolfiore", "avocado", "zenzero", "menta"]),
+    ("Il cous cous di cavolfiore di Fit with Fun: il cavolfiore e l'avocado non li hai, quindi ho usato il cous cous "
+     "e tolto l'avocado; limone, zenzero e menta mancano, lasciali fuori. Fa 610 kcal. "
+     "https://fitwithfun.it/cous-cous-o-riso-di-cavolfiore-low-carb-e-senza-glutine/",
+     [RICETTE, CALCOLO], ["ricette_fit_with_fun", "calcola_ricetta"], [RICETTE, CALCOLO], []),
+    ("Questo piatto fa circa 650 kcal e ti restano 1490 kcal per la giornata.",
+     [CALCOLO, "Obiettivi al giorno: circa 2100 kcal"], ["calcola_ricetta"], [CALCOLO], ["650 kcal"]),
+    ("Fa 610 kcal: ti restano circa 1490 kcal per oggi, e per il pranzo ne avevi 740.",
+     [CALCOLO, "Obiettivi al giorno: circa 2100 kcal. Per pranzo: circa 740 kcal"], ["calcola_ricetta"], [CALCOLO], []),
+    # domanda generica senza strumenti di cibo: le kcal non si controllano
+    ("Una banana ha circa 90 kcal.", ["quante calorie ha una banana?"], [], [], []),
 ]
 
 

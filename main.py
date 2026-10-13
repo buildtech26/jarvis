@@ -111,14 +111,30 @@ def avvia_telegram(jarvis, in_background: bool) -> bool:
 
 def avvia_voce(jarvis):
     def ciclo():
-        try:
-            import voice
+        # il 12/10, al risveglio dallo standby, il microfono ha dato "There is no driver installed" (PortAudio) e la
+        # voce è rimasta spenta fino al riavvio: ora riprova, rileggendo i dispositivi audio, dopo 1, 2, 5, 10 min
+        attese = [60, 120, 300, 600]
+        errori = 0
+        while True:
+            try:
+                import voice
 
-            voice.ciclo_vocale(jarvis)
-        except Exception:
-            # niente microfono o errore audio: la voce si ferma, il resto deve restare vivo
-            traceback.print_exc()
-            print("Voce disattivata.")
+                if errori:
+                    import sounddevice as sd
+
+                    sd._terminate()  # senza, PortAudio tiene l'elenco dei dispositivi di prima dello standby
+                    sd._initialize()
+                voice.ciclo_vocale(jarvis)
+                return
+            except Exception:
+                # niente microfono o errore audio: la voce si ferma, il resto deve restare vivo
+                if errori == 0:
+                    traceback.print_exc()
+                attesa = attese[min(errori, len(attese) - 1)]
+                errori += 1
+                if errori <= len(attese):  # poi riprova ogni 10 minuti senza riempire il log
+                    print(f"Voce disattivata (tentativo {errori}), riprovo tra {attesa // 60} min.")
+                time.sleep(attesa)
 
     threading.Thread(target=ciclo, daemon=True).start()
 

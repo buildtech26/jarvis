@@ -172,8 +172,10 @@ def main() -> int:
     dati_fatto = messaggi[0][1][0][0][1]
     testo, pulsanti = allenamento.pulsante(dati_fatto)
     atteso(testo.startswith("✅") and not pulsanti, "pulsante fatto", testo)
+    atteso(allenamento.pulsante(dati_fatto) == (None, []), "pulsante premuto due volte: niente")
     storico = (cartella / "Allenamento" / "Storico.md").read_text(encoding="utf-8")
     atteso(re.search(r"Corpo libero A \((Gambe|Intero) \w+\) · fase 1 · ✅ fatto", storico), "storico in Obsidian", storico)
+    atteso(storico.count("· ✅ fatto") == 1, "una riga sola nello storico", storico)
     atteso(controlla() == [], "non richiede due volte")
 
     # 7. corsa spostata a mano alle 20, Corpo libero B di giovedì cancellato a mano

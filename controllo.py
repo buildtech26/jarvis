@@ -11,6 +11,7 @@ che non consuma ricerche.
 import datetime
 import json
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -61,6 +62,10 @@ def _gemini(modello: str):
         except Exception as e:
             quota.segna_errore(modello, str(e))
             quota.registra(modello, "controllo", "429" if "429" in str(e) else "altro")
+            # 503/504 = troppa richiesta da Google in quel momento, non un guasto: il 13/10 3.6-flash ha dato 503
+            # sia alle 8 sia 10 minuti dopo ed è arrivato un avviso su Telegram inutile (la rotazione salta il modello)
+            if re.search(r"\b50[34]\b|UNAVAILABLE|DEADLINE_EXCEEDED", str(e)):
+                return "sovraccarico da Google in questo momento (503/504): la rotazione dei modelli lo salta"
             raise
         quota.registra(modello, "controllo")
         if not (r.text or "").strip():

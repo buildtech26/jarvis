@@ -190,12 +190,14 @@ solo una bozza. Non puoi inviare mail: dopo la bozza, ripeti il numero e ricorda
     ),
     "archivio": (
         r"articol|salvat|\bieri\b|l'altro ieri|giorni fa|settimana scorsa|avevamo|ti avevo|mi avevi|abbiamo (?:parlato|visto|guardato)|"
-        r"diario|quella volta|l'altra volta",
+        r"diario|quella volta|l'altra volta|\bri(?:dimmi|petimi|mandami|scrivimi)\b|me l'avevi|di nuovo quell",
         ["elenca_articoli", "cerca_articoli", "leggi_articolo", "leggi_diario", "cerca_diario"],
         """- articoli che l'utente ha salvato ("ho salvato", "i miei articoli", "quell'articolo su..."): cerca_articoli, \
 elenca_articoli, leggi_articolo. Sono diversi dalla ricerca web
 - conversazioni dei giorni passati ("cosa ti avevo chiesto ieri", "quel volo che avevamo guardato"): leggi_diario \
-per un giorno preciso, cerca_diario per argomento""",
+per un giorno preciso, cerca_diario per argomento
+- "ridimmi / ripetimi X" quando X non è nella conversazione di adesso: PRIMA cerca_diario e ripeti quello che avevi \
+detto allora, con le stesse dosi e gli stessi dati, dicendo di quando è; rifallo da capo solo se nel diario non c'è""",
     ),
     # attivato anche da brain.py quando la domanda nomina l'argomento di una nota salvata (sapere.citati)
     "sapere": (

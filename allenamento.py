@@ -539,14 +539,18 @@ def _esito(s: dict, azione: str, stato: dict, imp: dict, quando: datetime.dateti
     return "👍 Va bene, si riparte dalla prossima.", []
 
 
-def pulsante(dati: str) -> tuple[str, list]:
-    """Un pulsante premuto su Telegram: 'all:<n>:fatto|saltato|no' oppure 'all:<n>:rec:AAAAMMGGHHMM'."""
+def pulsante(dati: str) -> tuple[str | None, list]:
+    """Un pulsante premuto su Telegram: 'all:<n>:fatto|saltato|no' oppure 'all:<n>:rec:AAAAMMGGHHMM'. Testo None se
+    la seduta ha già quell'esito: il messaggio non va toccato."""
     parti = dati.split(":")
     with _lock:
         stato, imp = _carica(), _impostazioni()
         s = next((x for x in stato["sedute"] if str(x["n"]) == parti[1]), None)
         if s is None:
             return "Non trovo più questa seduta.", []
+        if parti[2] in ("fatto", "saltato") and s["stato"] == parti[2]:
+            # il 13/10 "Saltato" premuto 3 volte mentre il recupero cercava buchi in calendario: 3 righe nello storico
+            return None, []
         quando = None
         if parti[2] == "rec":
             quando = datetime.datetime.strptime(parti[3], "%Y%m%d%H%M").astimezone()

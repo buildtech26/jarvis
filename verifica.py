@@ -49,6 +49,11 @@ _PROMESSA = re.compile(r"\b(?:provvedo|procedo|rimedio)\b|\b(?:lo |le |li |la )?
                        r"sistemo|correggo|creo|segno|sposto|cancello) (?:subito|immediatamente|ora|adesso)\b", re.I)
 # ricerche al passato: possono riferirsi alle domande precedenti ("ho cercato solo su Ryanair" dopo esplora_voli)
 _RICERCA = re.compile(r"\bho (?:cercato|controllato|verificato|letto|trovato|guardato)\b", re.I)
+# kcal: Flash-Lite sbagliava di 100-150 kcal facendo i conti da solo (per questo c'è calcola_ricetta) e la riserva
+# Mistral le dava senza chiamarlo. Si controllano solo quando le fonti parlano di kcal (domande sul cibo)
+_KCAL = re.compile(rf"({_NUM})\s*(?:kcal|calorie)\b", re.I)
+# dubbio sugli ingredienti di una ricetta di Fit with Fun che non sono in dispensa e la risposta non nomina
+MANCANTI = "non hai detto che in casa non ci sono: "
 
 
 def _valori(num: str) -> set[float]:
@@ -75,6 +80,43 @@ def _orari(testo: str) -> set[tuple[int, int]]:
     trovati = {(int(h), int(m)) for h, m in _ORA.findall(testo)}
     trovati |= {(int(h), int(m or 0)) for h, m in _ALLE.findall(testo)}
     return trovati
+
+
+def _kcal_senza_fonte(risposta: str, tutto: str) -> list[str]:
+    fonte = [v for m in _KCAL.finditer(tutto) for v in _valori(m.group(1))]
+    if not fonte:
+        return []
+    # differenze di due valori: "ti restano 1490 kcal". Le somme no: con gli ingredienti di una ricetta quasi ogni
+    # numero inventato sarebbe la somma di due righe
+    calcolati = fonte + [abs(a - b) for a in fonte for b in fonte]
+    return [f"{m.group(1)} kcal" for m in _KCAL.finditer(risposta)
+            if not any(abs(v - c) <= max(5.0, 0.03 * c) for v in _valori(m.group(1)) for c in calcolati)]
+
+
+def _radice(parola: str) -> str:
+    return parola[:max(3, min(len(parola) - 1, 5))]
+
+
+def _mancanti_taciuti(risposta: str, risultati_ora: list[str]) -> list[str]:
+    """Gli ingredienti "Non in dispensa" della ricetta di Fit with Fun citata (dal link) che la risposta non nomina.
+    Il 13/10 Gemini ha preso il cous cous di cavolfiore, ha tolto cavolfiore, avocado, limone, zenzero e menta senza
+    dirlo e l'ha data come ricetta di Fit with Fun, mentre l'istruzione dello strumento chiede di dirlo sempre."""
+    minuscolo = risposta.lower()
+    # senza i link: quello della ricetta contiene spesso proprio l'ingrediente che manca ("...-di-cavolfiore-...")
+    parole_risposta = {_radice(p) for p in re.findall(r"[a-zà-ù]{4,}", re.sub(r"https?://\S+", " ", minuscolo))}
+    taciuti = []
+    for risultato in risultati_ora:
+        if not risultato.startswith("ricette_fit_with_fun:"):
+            continue
+        for blocco in re.split(r"\n\n(?=\d+\. )", risultato):
+            link, manca = re.search(r"Link: (\S+)", blocco), re.search(r"Non in dispensa: (.+)", blocco)
+            if not (link and manca and link.group(1).rstrip("/").lower() in minuscolo):
+                continue
+            for ingrediente in manca.group(1).split(", "):
+                parole = {_radice(p) for p in re.findall(r"[a-zà-ù]{4,}", ingrediente.lower())}
+                if parole and not parole & parole_risposta:
+                    taciuti.append(ingrediente.strip())
+    return taciuti
 
 
 def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risultati_ora: list[str],
@@ -109,6 +151,10 @@ def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risul
         if re.search(rf"\b{re.escape(marchio)}\b", risposta, re.I) and marchio.lower() not in minuscolo:
             dubbi.append(marchio)
 
+    dubbi += _kcal_senza_fonte(risposta, tutto)
+    if taciuti := _mancanti_taciuti(risposta, risultati_ora):
+        dubbi.append(MANCANTI + ", ".join(taciuti))
+
     if not strumenti_usati:
         if ((m := _AZIONE.search(risposta)) or (m := _PROMESSA.search(risposta))
                 or (not strumenti_prima and (m := _RICERCA.search(risposta)))):
@@ -120,10 +166,18 @@ def controlla(risposta: str, fonti: list[str], strumenti_usati: list[str], risul
 
 def correzione(dubbi: list[str]) -> str:
     """Messaggio per il secondo tentativo: arriva a Gemini come se fosse un turno dell'utente."""
-    return ("[Controllo automatico, non è l'utente a scrivere] Nella risposta ci sono dati che non vengono da nessuno "
-            f"strumento né dalla conversazione: {'; '.join(dubbi)}. Se servono, chiama lo strumento che li verifica. "
-            "Altrimenti riscrivi la risposta senza quei dati e di' chiaramente cosa non hai controllato. "
-            "Non dire di aver fatto azioni che non hai fatto con uno strumento.")
+    mancanti = [d[len(MANCANTI):] for d in dubbi if d.startswith(MANCANTI)]
+    dati = [d for d in dubbi if not d.startswith(MANCANTI)]
+    testo = "[Controllo automatico, non è l'utente a scrivere]"
+    if dati:
+        testo += (f" Nella risposta ci sono dati che non vengono da nessuno strumento né dalla conversazione: "
+                  f"{'; '.join(dati)}. Se servono, chiama lo strumento che li verifica. Altrimenti riscrivi la "
+                  "risposta senza quei dati e di' chiaramente cosa non hai controllato. Non dire di aver fatto azioni "
+                  "che non hai fatto con uno strumento.")
+    if mancanti:
+        testo += (f" La ricetta che citi chiede ingredienti che l'utente non ha in casa: {', '.join(mancanti)}. "
+                  "Riscrivi la risposta dicendolo per ognuno (anche se l'hai tolto o sostituito, e con cosa).")
+    return testo
 
 
 def registra(domanda: str, strumenti: list[str], risultati: list[str], precedenti: list[str],
@@ -145,10 +199,13 @@ def registra(domanda: str, strumenti: list[str], risultati: list[str], precedent
 def con_avviso(risposta: str, dubbi: list[str]) -> str:
     """Ultima difesa dopo il secondo tentativo: la risposta resta, ma con un avviso che si legge anche a voce."""
     azioni = [d for d in dubbi if d.startswith("«")]
-    dati = [d for d in dubbi if not d.startswith("«")]
+    mancanti = [d[len(MANCANTI):] for d in dubbi if d.startswith(MANCANTI)]
+    dati = [d for d in dubbi if not d.startswith(("«", MANCANTI))]
     avvisi = []
     if dati:
         avvisi.append(f"non ho una fonte per {', '.join(dati)}")
     if azioni:
         avvisi.append("per questa risposta non ho usato nessuno strumento")
+    if mancanti:
+        avvisi.append(f"la ricetta originale chiede anche {', '.join(mancanti)}, che in casa non hai")
     return f"{risposta.rstrip()} (Attenzione: {' e '.join(avvisi)}.)"

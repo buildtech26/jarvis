@@ -75,6 +75,9 @@ def _sistema(regole: str, recenti: list[str]) -> str:
 _usati: list[str] = []  # strumenti chiamati nella domanda in corso (chiedi è sotto lock, una domanda alla volta)
 _risultati: list[str] = []  # i loro risultati, per verifica.py e per le domande successive
 _chiamate: dict[str, int] = {}  # richieste Gemini mandate per la domanda in corso, per modello (anche quelle fallite)
+# secondi passati ad aspettare Gemini nella domanda in corso: il 13/10 due risposte hanno impiegato 32 e 38 s con
+# strumenti che ne richiedono 5, e dal log non si capiva dove fosse andato il tempo
+_attesa = {"gemini": 0.0}
 
 
 def _di_servizio(e: Exception) -> bool:
@@ -128,17 +131,28 @@ COMANDI = [
 # intero (il 12/10 Flash-Lite aveva risposto con una battuta e il solo link, senza esercizi); la spesa è già una lista
 INTEGRALI = {"seduta_allenamento", "consigli_spesa"}
 RICORDA = re.compile(r"^(?:jarvis,?\s+)?(?:ricordati|ricorda|tieni a mente|memorizza)\b(?:\s+che)?\s+(.+)", re.I | re.S)
+LIMITE = 4000  # caratteri del risultato di uno strumento che arrivano al modello
+# risultati lunghi per natura: le linee guida dell'alimentazione con la dispensa arrivano a 8-9.000 caratteri, e il
+# 13/10 il taglio a 4000 nascondeva a Gemini metà della dispensa (dalla O in poi: pasta, riso, tonno, uova) e le porzioni
+LIMITI = {"consigli_alimentazione": 12000}
+LENTO = 3  # secondi oltre i quali il log scrive quanto ha impiegato uno strumento
 
 
 def _esegui(nome: str, args: dict, log) -> str:
     _usati.append(nome)
     log(f"  [strumento] {nome}({args})")
     funzione = tools.PER_NOME.get(nome)
+    inizio = time.time()
     try:
-        esito = funzione(**args) if funzione else f"Strumento '{nome}' inesistente."
+        esito = str(funzione(**args) if funzione else f"Strumento '{nome}' inesistente.")
     except Exception as e:  # il modello a volte passa argomenti sbagliati
         esito = f"Errore: {e}"
-    esito = str(esito)[:4000]
+    if time.time() - inizio >= LENTO:
+        log(f"  [lento] {nome}: {time.time() - inizio:.1f} s")
+    limite = LIMITI.get(nome, LIMITE)
+    if len(esito) > limite:
+        log(f"  [tagliato] {nome}: {len(esito)} caratteri, al modello ne arrivano {limite}")
+    esito = esito[:limite]
     _risultati.append(f"{nome}: {esito}")
     return esito
 
@@ -188,6 +202,7 @@ class Jarvis:
         _usati.clear()
         _risultati.clear()
         _chiamate.clear()
+        _attesa["gemini"] = 0.0
         inizio = time.monotonic()
         # una riga per domanda: senza, le righe [strumento] non dicono né quando né per quale domanda
         log(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {canale or 'terminale'}: {testo[:150]!r}")
@@ -250,7 +265,8 @@ class Jarvis:
                 come += f" · strumenti: {', '.join(_usati)}"
         if falliti:
             come += f" · falliti: {'; '.join(falliti)}"
-        log(f"  [fine] {time.monotonic() - inizio:.1f} s · {come}")
+        attesa = f" (Gemini {_attesa['gemini']:.1f} s)" if _attesa["gemini"] >= 1 else ""
+        log(f"  [fine] {time.monotonic() - inizio:.1f} s{attesa} · {come}")
         return risposta
 
     def _chiedi_gemini(self, modello: str, log) -> str:
@@ -371,7 +387,11 @@ class Jarvis:
 
     def _genera(self, modello: str, contenuti: list, config):
         _chiamate[modello] = _chiamate.get(modello, 0) + 1  # contata prima: anche una richiesta fallita è partita
-        r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
+        inizio = time.monotonic()
+        try:
+            r = self.gemini.models.generate_content(model=modello, contents=contenuti, config=config)
+        finally:
+            _attesa["gemini"] += time.monotonic() - inizio
         quota.registra(modello, "cervello")
         return r
 

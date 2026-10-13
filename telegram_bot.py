@@ -63,11 +63,14 @@ class BotTelegram:
         requests.post(f"{self.api}/sendMessage", json=dati, timeout=30)
 
     def gestisci_pulsante(self, cq):
-        # la risposta toglie la rotellina dal pulsante sul telefono
-        requests.post(f"{self.api}/answerCallbackQuery", json={"callback_query_id": cq["id"]}, timeout=10)
+        dati, msg = cq.get("data", ""), cq.get("message") or {}
+        # la risposta toglie la rotellina dal pulsante sul telefono; per l'allenamento anche un avviso, perché il
+        # messaggio cambia solo dopo qualche secondo (il recupero legge il calendario) e il 13/10 "Saltato" è stato
+        # premuto 3 volte
+        avviso = {"text": "Ricevuto, un attimo…"} if dati.startswith("all:") else {}
+        requests.post(f"{self.api}/answerCallbackQuery", json={"callback_query_id": cq["id"], **avviso}, timeout=10)
         if cq.get("from", {}).get("id") != self.utente:
             return
-        dati, msg = cq.get("data", ""), cq.get("message") or {}
         if dati.startswith("dis:"):
             self.pulsante_dispensa(dati, msg)
             return
@@ -75,6 +78,8 @@ class BotTelegram:
             return
         print(f"[allenamento] pulsante {dati}")
         testo, pulsanti = allenamento.pulsante(dati)
+        if testo is None:  # già segnato da una pressione precedente
+            return
         # l'esito si aggiunge al messaggio della domanda, che perde i pulsanti: non si può premere due volte
         requests.post(f"{self.api}/editMessageText", json={
             "chat_id": msg["chat"]["id"], "message_id": msg["message_id"],

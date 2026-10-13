@@ -154,7 +154,8 @@ def main() -> int:
 
     dispensa._gemini = gemini
     r = dispensa.scala(giorno)
-    atteso(r == "🥫 Dalla dispensa ho tolto: Pasta 80 g, Uova 1 pz. Finiti: Uova.", "scalati", r)
+    atteso(r == "🥫 Dalla dispensa ho tolto: Pasta 80 g, Uova 1 pz. Finiti: Uova. Non vengono dalla dispensa: "
+           "Pizza margherita.", "scalati", r)
     atteso(finto.voce("Pasta")["quantita"] == 220 and finto.voce("Pasta")["cronometer"] == ["Pasta, Dry"]
            and finto.voce("Uova")["quantita"] == 0, "quantità e nomi di Cronometer in Notion",
            (finto.voce("Pasta"), finto.voce("Uova")))
@@ -166,6 +167,11 @@ def main() -> int:
     r = dispensa.scala(giorno)
     atteso(r == "🥫 Dalla dispensa ho tolto: Pasta 80 g." and len(richieste) == 1
            and finto.voce("Pasta")["quantita"] == 140, "nome già abbinato senza Gemini", r)
+    # una ricetta creata in Cronometer arriva solo col nome (13/10, "Pranzo|1.00 full recipe"): lo si dice
+    cibi.append({"nome": "Pranzo", "quantita": "1.00 full recipe", "gruppo": "Lunch"})
+    r = dispensa.scala(giorno)
+    atteso(r.startswith("🥫 Dalla dispensa non ho tolto niente. Non ho tolto Pranzo: è una ricetta creata in "
+                        "Cronometer"), "ricetta di Cronometer detta", r)
 
     # --- turni del bot ---
     dispensa.FILE.unlink()

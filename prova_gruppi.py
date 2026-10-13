@@ -55,6 +55,7 @@ CASI = [
     (["archivia la mail di Amazon"], "archivia_mail"),
     (["cosa ti avevo chiesto ieri?"], "leggi_diario"),
     (["quel volo che avevamo guardato la settimana scorsa"], "cerca_diario"),
+    (["Ridimmi la ricetta del cous cous"], "cerca_diario"),  # 13/10: rifatta da capo, con dosi diverse
     (["quell'articolo che ho salvato sugli ETF"], "cerca_articoli"),
     (["fai una ricerca su VWCE e salvala in Obsidian"], "ricerca_e_salva"),
     (["cosa sai sull'ETF SWDA?"], "cerca_sapere"),
