@@ -3,7 +3,6 @@
 Il piano gratuito ha un limite al minuto e uno al giorno, separati per modello. Un 429 al minuto si
 risolve in pochi secondi: il modello viene messo in pausa per il tempo indicato da Google (retryDelay)
 e intanto si usano gli altri. Un 429 giornaliero lo esclude fino alle 9, quando la quota riparte.
-Cervello e trascrizione condividono le pause: consumano la stessa quota.
 """
 import datetime
 import json
@@ -81,7 +80,7 @@ def _giorno_quota() -> str:
 
 
 def registra(modello: str, uso: str, esito: str = "ok"):
-    """uso: 'cervello' o 'voce'; esito: 'ok' oppure il tipo di errore ('429', 'altro')."""
+    """uso: 'cervello', 'controllo', ... ('voce' nei giorni fino al 14/10); esito: 'ok' oppure il tipo di errore ('429', 'altro')."""
     oggi = _giorno_quota()
     with _lock:
         try:

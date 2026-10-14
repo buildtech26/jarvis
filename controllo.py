@@ -214,7 +214,7 @@ def _pagina_web() -> str:
 
 def prove() -> list[tuple[str, str, object]]:
     """(nome, a cosa serve, funzione) dei servizi configurati in questo .env."""
-    elenco = [(f"Gemini {m}", "il cervello e la voce" + (" (modello principale)" if i == 0 else " (riserva)"),
+    elenco = [(f"Gemini {m}", "il cervello" +(" (modello principale)" if i == 0 else " (riserva)"),
                _gemini(m)) for i, m in enumerate(quota.MODELLI)]
     if riserva.configurata():
         elenco.append((f"Riserva Mistral {riserva.MODELLO}", "rispondere quando Gemini non risponde", riserva.prova))

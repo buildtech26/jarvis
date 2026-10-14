@@ -176,11 +176,11 @@ class Jarvis:
 
             self.gemini = genai.Client(api_key=GEMINI_KEY)
         # funzioni chiamate con (canale, domanda, risposta) dopo ogni scambio: la finestra le usa per
-        # mostrare anche quello che passa da voce e Telegram
+        # mostrare anche quello che passa da Telegram e dalla pagina web
         self.ascoltatori: list = []
 
     def chiedi(self, testo: str, log=print, canale: str = "") -> str:
-        # voce, Telegram e finestra condividono modello e conversazione: una domanda alla volta
+        # finestra, Telegram e pagina web condividono modello e conversazione: una domanda alla volta
         with self.lock:
             risposta = self._chiedi(testo, log, canale)
         for ascoltatore in self.ascoltatori:

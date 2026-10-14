@@ -2,7 +2,7 @@
 senza nessuno connesso a Windows (installa_servizio.ps1).
 
 Se Jarvis non risponde sulla porta dell'istanza unica, avvia main.py in modo "servizio" (Telegram, pagina web e
-messaggi automatici, senza finestra né voce). Il 14/10 Windows Update ha riavviato il PC alle 08:13 e Jarvis è rimasto
+messaggi automatici, senza finestra). Il 14/10 Windows Update ha riavviato il PC alle 08:13 e Jarvis è rimasto
 spento fino all'accesso delle 09:54; e un Jarvis chiuso per un errore non ripartiva mai. All'accensione non avvisa;
 dopo, un riavvio vuol dire che Jarvis si era fermato, e arriva un messaggio su Telegram.
 Quando si entra in Windows, il Jarvis completo prende il posto del servizio (main.unica_istanza).
@@ -98,7 +98,7 @@ def main() -> int:
         return 1
     if not avvio:
         _avvisa(f"⚠️ Jarvis si era fermato: l'ho fatto ripartire alle {time.strftime('%H:%M')}, per ora senza finestra "
-                "né voce (Telegram e pagina web funzionano). Per riaverle apri Jarvis dall'icona.")
+                "(Telegram e pagina web funzionano). Per riaverla apri Jarvis dall'icona.")
     return 0
 
 

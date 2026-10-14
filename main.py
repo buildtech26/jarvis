@@ -1,11 +1,10 @@
 """Avvio di Jarvis.
 
-    uv run main.py            finestra (Alt+J) + voce + Telegram; la finestra parte nascosta
+    uv run main.py            finestra (Alt+J) + Telegram + pagina web; la finestra parte nascosta
     uv run main.py mostra     come sopra ma con la finestra aperta; se Jarvis gira già, la apre e basta
-    uv run main.py voce       solo voce
     uv run main.py telegram   solo Telegram
     uv run main.py testo      chat da terminale, utile per provare
-    uv run main.py servizio   Telegram, pagina web e messaggi automatici, senza finestra né voce: lo avvia
+    uv run main.py servizio   Telegram, pagina web e messaggi automatici, senza finestra: lo avvia
                               sorveglia.py all'accensione (anche prima dell'accesso a Windows) e se Jarvis si ferma;
                               quando parte la versione completa, il servizio le cede il posto
 """
@@ -15,7 +14,6 @@ import socket
 import sys
 import threading
 import time
-import traceback
 from pathlib import Path
 
 CARTELLA = Path(__file__).parent
@@ -187,36 +185,6 @@ def avvia_web(jarvis):
         print(f"[web] pagina non avviata: {e}")
 
 
-def avvia_voce(jarvis):
-    def ciclo():
-        # il 12/10, al risveglio dallo standby, il microfono ha dato "There is no driver installed" (PortAudio) e la
-        # voce è rimasta spenta fino al riavvio: ora riprova, rileggendo i dispositivi audio, dopo 1, 2, 5, 10 min
-        attese = [60, 120, 300, 600]
-        errori = 0
-        while True:
-            try:
-                import voice
-
-                if errori:
-                    import sounddevice as sd
-
-                    sd._terminate()  # senza, PortAudio tiene l'elenco dei dispositivi di prima dello standby
-                    sd._initialize()
-                voice.ciclo_vocale(jarvis)
-                return
-            except Exception:
-                # niente microfono o errore audio: la voce si ferma, il resto deve restare vivo
-                if errori == 0:
-                    traceback.print_exc()
-                attesa = attese[min(errori, len(attese) - 1)]
-                errori += 1
-                if errori <= len(attese):  # poi riprova ogni 10 minuti senza riempire il log
-                    print(f"Voce disattivata (tentativo {errori}), riprovo tra {attesa // 60} min.")
-                time.sleep(attesa)
-
-    threading.Thread(target=ciclo, daemon=True).start()
-
-
 def main():
     modo = sys.argv[1] if len(sys.argv) > 1 else "tutto"
     if modo != "testo":
@@ -245,13 +213,8 @@ def main():
             avvia_web(jarvis)
             if not avvia_telegram(jarvis, in_background=False):
                 threading.Event().wait()  # senza Telegram resta la pagina web
-        elif modo == "voce":
-            import voice
-
-            voice.ciclo_vocale(jarvis)
         else:
             avvia_telegram(jarvis, in_background=True)
-            avvia_voce(jarvis)
             avvia_web(jarvis)
             from gui import Finestra
 

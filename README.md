@@ -1,19 +1,18 @@
 # Jarvis
 
-Assistente personale: finestra di chat (Alt+J), voce sul PC ("Hey Jarvis") e bot Telegram. Cervello: Gemini
+Assistente personale: finestra di chat (Alt+J), bot Telegram e pagina web. Cervello: Gemini
 (piano gratuito, `GEMINI_API_KEY` nel `.env`), con tre modelli Gemini a rotazione. Se non risponde nessuno, passa
-alla riserva Mistral (`riserva.py`, `MISTRAL_API_KEY`, account gratuito): ministral-14b per le risposte e voxtral per
-i vocali. La riserva risponde con l'etichetta "(modello di riserva)" e non tocca calendario, promemoria e
+alla riserva Mistral (`riserva.py`, `MISTRAL_API_KEY`, account gratuito, ministral-14b). La riserva risponde con l'etichetta "(modello di riserva)" e non tocca calendario, promemoria e
 pianificazione degli allenamenti, perché sbaglia i giorni della settimana. Se non risponde nemmeno lei, Jarvis spiega
-l'errore. Ollama locale è stato tolto il 2026-10-03 (lento e impreciso su questo PC).
+l'errore. Ollama locale è stato tolto il 2026-10-03 (lento e impreciso su questo PC). La voce ("Hey Jarvis",
+risposte parlate, microfono nella finestra, vocali su Telegram) è stata tolta il 2026-10-14 su richiesta dell'utente.
 
 ## Avvio
 
 ```
 uv run main.py testo      # chat da terminale, per provare
-uv run main.py voce       # di' "Hey Jarvis", aspetta il bip, parla
 uv run main.py telegram   # solo bot
-uv run main.py            # finestra + voce + Telegram insieme (è quello che avvia l'attività automatica)
+uv run main.py            # finestra + Telegram + pagina web (è quello che avvia l'attività automatica)
 ```
 
 ## Telegram
@@ -28,15 +27,14 @@ Funziona finché il PC è acceso e lo script gira.
 ## Finestra di chat
 
 **Alt+J** apre e chiude la chat da qualsiasi programma; Esc o la X la nascondono (Jarvis resta attivo).
-L'icona **Jarvis** sul desktop la apre col mouse (`crea_icona.py` la ricrea). Nella finestra: 🎤 per parlare senza
-"Hey Jarvis", "voce sì/no" per sentire anche le risposte scritte, "Nuova" per azzerare la conversazione.
-Mostra anche gli scambi fatti a voce e su Telegram: la conversazione è una sola. Codice in `gui.py`.
-Lo sfondo è tinta unita (la sfera centrale è stata tolta su scelta dell'utente): mentre Jarvis pensa, ascolta o parla
-lo dice la scritta di stato in alto.
+L'icona **Jarvis** sul desktop la apre col mouse (`crea_icona.py` la ricrea). Nella finestra: "Nuova" per azzerare
+la conversazione. Mostra anche gli scambi fatti su Telegram e sulla pagina web: la conversazione è una sola. Codice in
+`gui.py`. Lo sfondo è tinta unita (la sfera centrale è stata tolta su scelta dell'utente): mentre Jarvis pensa lo dice
+la scritta di stato in alto.
 
 ## Avvio automatico
 
-L'attività "Jarvis" nell'Utilità di pianificazione avvia `main.py --log` (voce + Telegram) 30 s dopo
+L'attività "Jarvis" nell'Utilità di pianificazione avvia `main.py --log` (finestra nascosta + Telegram) 30 s dopo
 l'accesso a Windows e lo riavvia se si chiude. L'output finisce in `jarvis.log`.
 
     Stop-ScheduledTask Jarvis      # fermarlo (es. per avviarlo a mano mentre lo modifichi)
@@ -60,11 +58,11 @@ l'accesso a Windows e lo riavvia se si chiude. L'output finisce in `jarvis.log`.
 - `quota.py`: ordine dei modelli Gemini (3.5-flash-lite, 3.1-flash-lite, 3.6-flash; cambiabile con `GEMINI_MODEL`)
   e pause dopo un 429. Il limite al minuto vale per modello: quello colpito resta fermo per il `retryDelay` indicato
   da Google mentre rispondono gli altri; se sono tutti fermi, si aspetta fino a 20 s. Un 429 giornaliero esclude
-  il modello fino alle 9. Cervello e trascrizione condividono le pause
+  il modello fino alle 9
 - `brain.py`: dialogo con il modello, comandi diretti ("apri", "cerca", "che ore sono"), ripiego sulla ricerca web
 - `tools.py`: strumenti (web, notizie, meteo, app, siti, file, volume, musica, blocco schermo). Le app conosciute sono nel dizionario `APP`
-- `voice.py`: parola d'attivazione (openwakeword), trascrizione (Gemini; Whisper tolto il 2026-10-03: sbagliava di più e occupava ~130 MB), voce (edge-tts, con la voce di Windows se manca la rete)
-- `telegram_bot.py`: long polling, accetta testo e vocali, consegna i promemoria ogni 20 s
+- `telegram_bot.py`: long polling, accetta testo, foto e documenti (ai vocali risponde di scrivere), consegna i
+  promemoria ogni 20 s
 - `promemoria.py`: promemoria in `promemoria.json`; quelli scaduti a PC spento arrivano all'accensione, segnati "in ritardo"
 - `calendario.py` + `calendario.gs`: Google Calendar tramite una web app Apps Script (script.google.com, progetto
   "Jarvis Calendario"); se modifichi il `.gs` serve "Gestisci deployment → Modifica → Nuova versione", altrimenti l'URL

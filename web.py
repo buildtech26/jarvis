@@ -4,7 +4,7 @@ Il server ascolta solo su 127.0.0.1:PORTA; da fuori ci si arriva con Tailscale F
 che fa anche l'HTTPS. Siccome l'indirizzo è pubblico, si entra solo con WEB_PASSWORD del .env (riletta a ogni
 tentativo, almeno 12 caratteri): dopo TENTATIVI password sbagliate in BLOCCO secondi il login si ferma, e su Telegram
 arriva un avviso per ogni accesso riuscito e per ogni blocco. La sessione dura DURATA e il cookie sparisce chiudendo il
-browser, perché su un PC non suo l'utente non resti dentro. La conversazione è la stessa di voce, finestra e Telegram:
+browser, perché su un PC non suo l'utente non resti dentro. La conversazione è la stessa di finestra e Telegram:
 la pagina mostra anche gli scambi degli altri canali (ascoltatore di brain.Jarvis).
 Solo libreria standard: niente dipendenze nuove per un server di poche righe.
 """

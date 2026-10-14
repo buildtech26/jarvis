@@ -34,7 +34,7 @@ BARRA = PANNELLO
 # ma il titolo resta per Alt+Tab e la barra delle applicazioni
 BARRA_TESTO = BARRA
 
-CANALI = {"voce": "🎙 a voce", "telegram": "✈ da Telegram", "web": "🌐 dalla pagina web"}
+CANALI = {"telegram": "✈ da Telegram", "web": "🌐 dalla pagina web"}
 MOD_ALT, MOD_NOREPEAT, WM_HOTKEY = 0x0001, 0x4000, 0x0312
 
 
@@ -46,20 +46,18 @@ def saluto() -> tuple:
     return ("Jarvis", f"{testo}, Mattia", "jarvis", "")
 
 
-def _pulsante(lato: int, tipo: str, stato: str) -> ImageTk.PhotoImage:
-    """Pulsante rotondo in stile HUD: alone, anello turchese e icona ('invio' o 'mic').
+def _pulsante(lato: int, stato: str) -> ImageTk.PhotoImage:
+    """Pulsante d'invio rotondo in stile HUD: alone, anello turchese e aeroplanino di carta.
 
-    stato: 'normale', 'sopra' (mouse sopra) o 'attivo' (microfono in ascolto).
+    stato: 'normale' o 'sopra' (mouse sopra).
     """
     from PIL import ImageDraw, ImageFilter
 
     s = 4  # si disegna 4 volte più grande e poi si riduce: bordi lisci
     n = lato * s
     m = 5 * s  # spazio per l'alone attorno all'anello
-    pieno = tipo == "invio" and stato == "sopra"
-    riempimento = {"normale": "#181c22", "sopra": "#1f2a3d", "attivo": "#24395e"}[stato]
-    if pieno:
-        riempimento = PULSANTE
+    pieno = stato == "sopra"
+    riempimento = PULSANTE if pieno else "#181c22"
 
     alone = Image.new("RGBA", (n, n), (0, 0, 0, 0))
     ImageDraw.Draw(alone).ellipse((m, m, n - m, n - m), outline=ACCENTO, width=4 * s)
@@ -75,15 +73,9 @@ def _pulsante(lato: int, tipo: str, stato: str) -> ImageTk.PhotoImage:
     def p(x, y):  # coordinate relative (0-1) del pulsante
         return (x * n, y * n)
 
-    colore = "#ffffff" if pieno else (TESTO if stato == "attivo" else ACCENTO)
-    if tipo == "invio":
-        # aeroplanino di carta: punta a destra, coda incavata
-        d.polygon([p(0.31, 0.30), p(0.73, 0.50), p(0.31, 0.70), p(0.39, 0.50)], fill=colore)
-    else:
-        d.rounded_rectangle((*p(0.43, 0.27), *p(0.57, 0.54)), radius=0.07 * n, fill=colore)
-        d.arc((*p(0.35, 0.36), *p(0.65, 0.62)), start=0, end=180, fill=colore, width=int(0.035 * n))
-        d.line((*p(0.50, 0.62), *p(0.50, 0.71)), fill=colore, width=int(0.035 * n))
-        d.line((*p(0.42, 0.71), *p(0.58, 0.71)), fill=colore, width=int(0.035 * n))
+    colore = "#ffffff" if pieno else ACCENTO
+    # aeroplanino di carta: punta a destra, coda incavata
+    d.polygon([p(0.31, 0.30), p(0.73, 0.50), p(0.31, 0.70), p(0.39, 0.50)], fill=colore)
     return ImageTk.PhotoImage(img.resize((lato, lato), Image.LANCZOS))
 
 
@@ -123,8 +115,6 @@ class Finestra:
         self.f_titolo = (carattere, 14, "bold")
 
         self._costruisci()
-        self.voce_attiva = tk.BooleanVar(value=False)
-        self._aggiorna_voce()
         self._messaggio(*saluto())
 
         threading.Thread(target=self._tasto_rapido, daemon=True).start()
@@ -158,15 +148,10 @@ class Finestra:
         # niente nome in alto (scelta dell'utente): resta solo lo stato, vuoto a riposo
         self.stato = tk.Label(testata, text="", font=self.f_piccolo, fg=TENUE, bg=PANNELLO)
         self.stato.pack(side="left")
-        self.btn_voce = tk.Button(
-            testata, font=self.f_piccolo, relief="flat", bd=0, padx=8, pady=2, cursor="hand2",
-            activebackground=CAMPO, command=self._cambia_voce,
-        )
-        self.btn_voce.pack(side="right")
         tk.Button(
             testata, text="Nuova", font=self.f_piccolo, fg=TENUE, bg=PANNELLO, relief="flat", bd=0, padx=8,
             pady=2, cursor="hand2", activebackground=CAMPO, activeforeground=TESTO, command=self._nuova,
-        ).pack(side="right", padx=(0, 4))
+        ).pack(side="right")
         tk.Frame(self.root, bg=BORDO, height=1).pack(fill="x")
 
         # la barra di scrittura va fissata in basso PRIMA della chat, sennò se manca spazio sparisce lei
@@ -180,24 +165,16 @@ class Finestra:
         for widget in (self.tela, self.root):
             widget.bind("<MouseWheel>", self._rotella)
 
-        # microfono e invio a destra, il campo prende lo spazio che resta. I pulsanti sono immagini disegnate
-        # con PIL a risoluzione quadrupla: i cerchi del Canvas di Tk hanno i bordi seghettati
+        # invio a destra, il campo prende lo spazio che resta. Il pulsante è un'immagine disegnata con PIL a
+        # risoluzione quadrupla: i cerchi del Canvas di Tk hanno i bordi seghettati
         lato = self._px(48)
-        self.img_invia = {s: _pulsante(lato, "invio", s) for s in ("normale", "sopra")}
-        self.img_mic = {s: _pulsante(lato, "mic", s) for s in ("normale", "sopra", "attivo")}
+        self.img_invia = {s: _pulsante(lato, s) for s in ("normale", "sopra")}
 
         self.btn_invia = tk.Label(piede, image=self.img_invia["normale"], bg=PANNELLO, bd=0, cursor="hand2")
         self.btn_invia.bind("<Button-1>", lambda e: self._invia())
         self.btn_invia.bind("<Enter>", lambda e: self.btn_invia.config(image=self.img_invia["sopra"]))
         self.btn_invia.bind("<Leave>", lambda e: self.btn_invia.config(image=self.img_invia["normale"]))
         self.btn_invia.pack(side="right", padx=(self._px(8), 0))
-
-        self.btn_mic = tk.Label(piede, image=self.img_mic["normale"], bg=PANNELLO, bd=0, cursor="hand2")
-        self.btn_mic.bind("<Button-1>", lambda e: self._ascolta())
-        self.btn_mic.bind("<Enter>", lambda e: self._stato_mic("sopra"))
-        self.btn_mic.bind("<Leave>", lambda e: self._stato_mic("normale"))
-        self.btn_mic.pack(side="right", padx=(self._px(8), 0))
-        self._mic_attivo = False
 
         cornice = tk.Frame(piede, bg=CAMPO, padx=self._px(10), pady=self._px(6),
                            highlightthickness=1, highlightbackground=BORDO, highlightcolor=ACCENTO)
@@ -257,17 +234,6 @@ class Finestra:
     def _imposta_stato(self, testo: str, colore: str = TENUE):
         self.stato.config(text=testo, fg=colore)
 
-    def _aggiorna_voce(self):
-        attiva = self.voce_attiva.get()
-        self.btn_voce.config(
-            text="🔊 voce sì" if attiva else "🔈 voce no", fg=ACCENTO if attiva else TENUE,
-            bg=CAMPO if attiva else PANNELLO,
-        )
-
-    def _cambia_voce(self):
-        self.voce_attiva.set(not self.voce_attiva.get())
-        self._aggiorna_voce()
-
     def _nuova(self):
         self.jarvis.dimentica()
         self.messaggi.clear()
@@ -313,44 +279,7 @@ class Finestra:
         except Exception as e:
             risposta = f"Qualcosa è andato storto: {e}"
         self.coda.put(("risposta", risposta))
-        if self.voce_attiva.get():
-            import voice
-
-            self.coda.put(("stato", "parlo…"))
-            voice.parla(risposta)
         self.coda.put(("fine", None))
-
-    def _ascolta(self):
-        if self.occupato:
-            return
-        self.occupato = True
-        self._mic_attivo = True
-        self._stato_mic("attivo")
-        self._imposta_stato("ti ascolto… parla pure", ACCENTO)
-
-        def registra():
-            try:
-                import sounddevice as sd
-
-                import voice
-
-                with sd.InputStream(samplerate=voice.FREQ, channels=1, dtype="int16", blocksize=voice.BLOCCO) as s:
-                    audio = voice.registra_frase(s)
-                self.coda.put(("stato", "trascrivo…"))
-                self.coda.put(("trascritto", voice.trascrivi(audio)))
-            except Exception as e:
-                self.coda.put(("errore_mic", str(e)))
-
-        threading.Thread(target=registra, daemon=True).start()
-
-    def _stato_mic(self, stato: str):
-        # mentre ascolta resta "attivo" anche se il mouse entra o esce
-        self.btn_mic.config(image=self.img_mic["attivo" if self._mic_attivo else stato])
-
-    def _fine_ascolto(self):
-        self._mic_attivo = False
-        self._stato_mic("normale")
-        self.occupato = False
 
     def _da_altro_canale(self, canale: str, domanda: str, risposta: str):
         if canale != "app":
@@ -367,16 +296,6 @@ class Finestra:
                 elif tipo == "fine":
                     self.occupato = False
                     self._imposta_stato("")
-                elif tipo == "trascritto":
-                    self._fine_ascolto()
-                    if dato:
-                        self._invia(dato)
-                    else:
-                        self._imposta_stato("non ho sentito niente")
-                elif tipo == "errore_mic":
-                    self._fine_ascolto()
-                    self._imposta_stato("microfono non disponibile", ERRORE)
-                    self._info(f"Errore microfono: {dato}", "errore")
                 elif tipo == "altro":
                     canale, domanda, risposta = dato
                     nota = CANALI.get(canale, canale)

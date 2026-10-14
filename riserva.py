@@ -4,8 +4,9 @@ Cervello: ministral-14b (30 richieste e circa 900.000 token al minuto, gratis). 
 vere di verifica.jsonl: italiano buono e strumenti sensati, ma sbaglia di un giorno quando trasforma "martedì" o
 "domenica" in una data (6 volte su 8, anche con l'elenco dei giorni nel prompt). Per questo, su scelta dell'utente,
 la riserva non tocca il calendario né le azioni con una data da calcolare (ESCLUSI). Usa anche elenchi e grassetti
-che a voce non vanno: senza_markdown li toglie. Ogni risposta finisce con ETICHETTA, così si sa da dove viene.
-Voce: voxtral-mini (trascrizione, 60 al minuto). mistral-small e mistral-medium sul piano gratuito hanno limite zero.
+che Gemini non usa: senza_markdown li toglie. Ogni risposta finisce con ETICHETTA, così si sa da dove viene.
+mistral-small e mistral-medium sul piano gratuito hanno limite zero. La trascrizione con voxtral è stata tolta
+insieme alla voce, il 2026-10-14.
 Groq era l'altra possibilità: 8.000 token al minuto, troppo pochi per gli strumenti; tolto su richiesta dell'utente.
 """
 import json
@@ -22,7 +23,6 @@ load_dotenv(Path(__file__).with_name(".env"))
 
 URL = "https://api.mistral.ai/v1"
 MODELLO = os.getenv("RISERVA_MODELLO", "ministral-14b-latest").strip()
-TRASCRIZIONE = "voxtral-mini-latest"
 ETICHETTA = "(modello di riserva)"
 # calendario, promemoria e allenamenti da pianificare o segnare: tutti vogliono una data calcolata dal modello
 ESCLUSI = {"eventi_calendario", "crea_evento", "crea_eventi_ripetuti", "sposta_evento", "cancella_evento",
@@ -121,21 +121,13 @@ def rispondi(sistema: str, storia: list[dict], funzioni: list, esegui, max_passi
 
 
 def senza_markdown(testo: str) -> str:
-    """Le risposte si leggono anche a voce: via grassetti, titoli, codice e segni degli elenchi."""
+    """Via grassetti, titoli, codice e segni degli elenchi: le risposte devono somigliare a quelle di Gemini."""
     testo = re.sub(r"\[[^\]]*\]\((https?://[^)\s]+)\)", r"\1", testo)  # [Fit with Fun](https://...) → l'indirizzo
     testo = re.sub(r"(\*\*|__|`)", "", testo)
     testo = re.sub(r"(?m)^\s*#+\s*", "", testo)
     testo = re.sub(r"(?m)^\s*(?:[-*•]|\d+[.)])\s+", "", testo)
     testo = re.sub(r"(?<!\w)\*(\S[^*\n]*?)\*(?!\w)", r"\1", testo)  # *corsivo*
     return re.sub(r"\n{3,}", "\n\n", testo).strip()
-
-
-def trascrivi(dati: bytes, nome_file: str) -> str:
-    r = requests.post(f"{URL}/audio/transcriptions", headers=_intestazioni(), timeout=30,
-                      files={"file": (nome_file, dati)}, data={"model": TRASCRIZIONE, "language": "it"})
-    quota.registra(TRASCRIZIONE, "voce", "ok" if r.ok else "429" if r.status_code == 429 else "altro")
-    r.raise_for_status()
-    return (r.json().get("text") or "").strip()
 
 
 def prova() -> str:

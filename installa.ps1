@@ -35,12 +35,6 @@ if (-not $uv) {
 $uvPath = $uv.Source
 Ok "uv trovato: $uvPath"
 
-if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-    Avviso "FFmpeg non trovato (serve per le risposte parlate). Installalo con:  winget install Gyan.FFmpeg"
-} else {
-    Ok "FFmpeg trovato"
-}
-
 if (-not (Test-Path (Join-Path $cartella $FileAvvio))) {
     Write-Host "File $FileAvvio non trovato in $cartella. Esegui lo script dentro la cartella jarvis." -ForegroundColor Red
     exit 1

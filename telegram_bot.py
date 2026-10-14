@@ -1,4 +1,5 @@
-"""Bot Telegram: messaggi di testo e vocali, risponde solo al proprietario."""
+"""Bot Telegram: messaggi di testo, foto e documenti, risponde solo al proprietario. I vocali non li ascolta più
+(la voce è stata tolta il 2026-10-14, su richiesta dell'utente)."""
 import json
 import os
 import tempfile
@@ -26,7 +27,6 @@ import quota
 import rete
 import riavvio
 import ritardi
-import voice
 
 
 # tastiera fissa sotto la chat: il pulsante chiede al telefono il GPS e lo manda con un tocco
@@ -174,14 +174,6 @@ class BotTelegram:
     def scrive(self, chat_id):
         requests.post(f"{self.api}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=10)
 
-    def scarica_vocale(self, file_id) -> str:
-        info = requests.get(f"{self.api}/getFile", params={"file_id": file_id}, timeout=30).json()["result"]
-        audio = requests.get(f"{self.file_api}/{info['file_path']}", timeout=60).content
-        percorso = os.path.join(tempfile.gettempdir(), "jarvis_vocale.oga")
-        with open(percorso, "wb") as f:
-            f.write(audio)
-        return percorso
-
     def gestisci(self, msg):
         chat_id = msg["chat"]["id"]
         mittente = msg.get("from", {}).get("id")
@@ -205,14 +197,9 @@ class BotTelegram:
             self.jarvis.aggiungi_scambio("telegram", "📍 posizione del parcheggio", risposta)
             return
         if "voice" in msg or "audio" in msg:
-            self.scrive(chat_id)
-            testo = voice.trascrivi(self.scarica_vocale((msg.get("voice") or msg["audio"])["file_id"]))
-            if not testo:
-                self.invia(chat_id, "Non ho capito il vocale.")
-                return
-            self.invia(chat_id, f"🎙 {testo}")
-        else:
-            testo = msg.get("text", "").strip()
+            self.invia(chat_id, "I vocali non li ascolto più, signore: me lo scriva, per favore.")
+            return
+        testo = msg.get("text", "").strip()
         if not testo:
             return
         if testo in ("/start", "/nuova"):
