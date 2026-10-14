@@ -37,7 +37,8 @@ def _chiamata(nome: str):
 
 
 def _testo(testo: str):
-    return SimpleNamespace(function_calls=None, text=testo, candidates=[])
+    return SimpleNamespace(function_calls=None, text=testo,
+                           candidates=[SimpleNamespace(content=types.Content(role="model", parts=[types.Part(text=testo)]))])
 
 
 class GeminiFinto:
@@ -168,7 +169,36 @@ def main() -> int:
         riserva.configurata, riserva._chiama = originali[0], originali[1]
     atteso("nemmeno il modello di riserva" in risposta, f"riserva giù: {risposta!r}", righe)
 
-    print(f"9 casi, errori: {len(errori)}")
+    # 10. passi finiti (14/10): dopo MAX_PASSI giri il modello vuole ancora uno strumento; la richiesta finale non
+    # può chiamarli (mode NONE) e la risposta non è "Non ho una risposta"
+    configs = []
+    finale = _testo("Pasta col pollo, 770 kcal.")
+    copione = [_chiamata("prova_finta")] * brain.MAX_PASSI + [finale]
+    j = brain.Jarvis()
+    j.gemini = GeminiFinto(copione)
+    originale_genera = j.gemini.models.generate_content
+    j.gemini.models.generate_content = lambda model, contents, config: configs.append(config) or originale_genera(
+        model, contents, config)
+    righe = []
+    risposta = j.chiedi("dammi una ricetta per il pranzo", log=righe.append, canale="prova")
+    modo = configs[-1].tool_config.function_calling_config.mode if configs and configs[-1].tool_config else None
+    atteso(risposta == "Pasta col pollo, 770 kcal.", f"passi finiti: risposta {risposta!r}", righe)
+    atteso(str(modo).endswith("NONE"), f"passi finiti: ultima richiesta con mode {modo}", righe)
+    atteso(any("[passi]" in r for r in righe), "passi finiti: riga [passi]", righe)
+
+    # 10b. come il 14/10 dal vero: anche con mode NONE Flash-Lite chiede ancora uno strumento; non va eseguito
+    eseguiti = []
+    tools.PER_NOME["calcola_finto"] = lambda **k: eseguiti.append(k) or "770 kcal"
+    copione = [_chiamata("prova_finta")] * brain.MAX_PASSI + [_chiamata("calcola_finto"), finale]
+    risposta, g, righe = _prova("dammi una ricetta per il pranzo", copione)
+    atteso(risposta == "Pasta col pollo, 770 kcal." and not eseguiti and not g.copione,
+           f"passi finiti, chiede ancora: risposta {risposta!r}, eseguiti {eseguiti}", righe)
+
+    # 11. risposta vuota senza strumenti: si richiede il testo invece di "Non ho una risposta"
+    risposta, g, righe = _prova("dimmi una cosa", [_testo(""), _testo("Ecco una cosa.")])
+    atteso(risposta == "Ecco una cosa.", f"vuota: risposta {risposta!r}", righe)
+
+    print(f"11 casi, errori: {len(errori)}")
     return 1 if errori else 0
 
 

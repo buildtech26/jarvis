@@ -49,6 +49,8 @@ SENZA_KCAL = re.compile(r"\bsale|\bpepe\b|spezie|origano|basilico|prezzemol|rosm
                         r"^(?:aroma |estratto di )?vanigli|^cannella", re.I)
 UOVO = 50  # grammi di un uovo medio senza guscio: "uova 3" sono 3 uova, non 3 grammi
 FIT_WITH_FUN = "https://fitwithfun.it"
+RICETTE_VALE = 6 * 3600  # secondi in cui una ricerca su Fit with Fun già fatta vale ancora
+_ricette: dict[tuple, tuple[float, list[dict]]] = {}  # (cosa, quante) → (time.monotonic(), ricette)
 # parole tolte dalla ricerca: il sito vuole tutte le parole nella ricetta, e "idea" o "stasera" non ci sono mai
 NON_CERCARE = {"con", "col", "coi", "per", "una", "uno", "del", "dei", "della", "delle", "allo", "alla", "alle", "che", "qualcosa",
                "ricetta", "ricette", "piatto", "idea", "idee", "stasera", "fit", "with", "fun"}
@@ -468,10 +470,18 @@ def calcola_ricetta(ingredienti: str) -> str:
 
 
 def _cerca_ricette(cosa: str, quante: int) -> list[dict]:
+    """Le ricette del sito per quella ricerca. Il sito impiega 2-6 s e le ricette cambiano di rado: la stessa ricerca
+    vale RICETTE_VALE secondi (il 14/10 "riprova" ha rifatto la stessa ricerca di pollo per pranzo un minuto dopo)."""
+    chiave = (cosa.lower(), quante)
+    salvato = _ricette.get(chiave)
+    if salvato and time.monotonic() - salvato[0] < RICETTE_VALE:
+        return salvato[1]
     r = requests.get(f"{FIT_WITH_FUN}/wp-json/wp/v2/wprm_recipe", params={"search": cosa, "per_page": quante},
                      timeout=20)
     r.raise_for_status()
-    return [x["recipe"] for x in r.json()]
+    ricette = [x["recipe"] for x in r.json()]
+    _ricette[chiave] = (time.monotonic(), ricette)
+    return ricette
 
 
 def _link_ricette(articoli: list[int]) -> dict[int, str]:

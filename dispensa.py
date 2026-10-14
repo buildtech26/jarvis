@@ -11,11 +11,13 @@ Le quantità sono indicative. Lo stato (C'è, Sta finendo, Finito) lo calcola No
 sotto un quarto dell'ultimo acquisto. Il database l'ha creato l'utente (2026-10-11), per l'integrazione Jarvis
 serve la connessione (••• → Connessioni → Jarvis).
 """
+import copy
 import datetime
 import io
 import json
 import os
 import re
+import threading
 import time
 import uuid
 from collections import Counter
@@ -42,6 +44,9 @@ _QUANTITA = re.compile(rf"{_NUMERO}\s*({'|'.join(sorted(UNITA, key=len, reverse=
 _PAROLE_VUOTE = {"di", "del", "della", "dei", "delle", "il", "lo", "la", "le", "gli", "un", "una", "uno", "in", "nel",
                  "nella", "nello", "circa", "confezione", "confezioni", "pacco", "pacchi", "bottiglia", "vasetto"}
 _errori = {"pausa": 0.0, "volte": 0}
+LETTURA_VALE = 120  # secondi in cui l'ultima lettura della dispensa vale ancora (vedi _voci)
+_lettura: dict = {"voci": None, "quando": 0.0}
+_lettura_lock = threading.Lock()
 
 
 # --- Notion ---
@@ -67,6 +72,20 @@ def _voce(p: dict) -> dict:
 
 
 def _voci() -> list[dict]:
+    """Le voci della dispensa. Una lettura vale LETTURA_VALE secondi: una domanda sul cibo la chiedeva fino a 4 volte
+    (consigli_alimentazione, ricette_fit_with_fun e ogni calcola_ricetta), a 0,6-2,5 s l'una. Ogni scrittura di
+    Jarvis la butta; una modifica fatta a mano su Notion si vede al più dopo LETTURA_VALE secondi."""
+    with _lettura_lock:
+        if _lettura["voci"] is None or time.monotonic() - _lettura["quando"] > LETTURA_VALE:
+            _lettura["voci"], _lettura["quando"] = _leggi_voci(), time.monotonic()
+        return copy.deepcopy(_lettura["voci"])  # chi le riceve le modifica (voce.update, voci.remove)
+
+
+def _dimentica_voci():
+    _lettura["voci"] = None
+
+
+def _leggi_voci() -> list[dict]:
     voci, cursore = [], None
     while True:
         corpo = {"page_size": 100, "sorts": [{"property": "Nome", "direction": "ascending"}]}
@@ -97,11 +116,13 @@ def _proprieta(**campi) -> dict:
 
 
 def _cambia(voce: dict, **campi):
+    _dimentica_voci()
     notion._chiama("PATCH", f"/pages/{voce['id']}", properties=_proprieta(**campi))
     voce.update(campi)
 
 
 def _crea(**campi) -> dict:
+    _dimentica_voci()
     p = notion._chiama("POST", "/pages", parent={"type": "data_source_id", "data_source_id": DISPENSA},
                        properties=_proprieta(**campi))
     return _voce(p)
@@ -222,7 +243,7 @@ def aggiorna_dispensa(prodotti: str, azione: str = "aggiungi") -> str:
         return "Dimmi quali prodotti."
     if azione == "aggiungi":
         return _aggiungi(elenco)
-    voci, fatti, problemi = _voci(), [], []
+    voci, fatti, problemi = _leggi_voci(), [], []  # per scrivere si legge sempre da Notion
     for prodotto in elenco:
         voce = _trova(prodotto["nome"], voci)
         q, u = prodotto["quantita"], prodotto["unita"]
@@ -230,6 +251,7 @@ def aggiorna_dispensa(prodotti: str, azione: str = "aggiungi") -> str:
             problemi.append(prodotto["nome"])
             continue
         if azione == "elimina":
+            _dimentica_voci()
             notion._chiama("PATCH", f"/pages/{voce['id']}", in_trash=True)
             voci.remove(voce)
             fatti.append(f"{voce['nome']}: tolto dalla dispensa")
@@ -254,7 +276,7 @@ def aggiorna_dispensa(prodotti: str, azione: str = "aggiungi") -> str:
 
 def _aggiungi(elenco: list[dict]) -> str:
     """Prodotti comprati (nome, quantità, unità, posto; quantità e posto possono mancare) dentro la dispensa."""
-    voci, fatti = _voci(), []
+    voci, fatti = _leggi_voci(), []  # per scrivere si legge sempre da Notion
     for prodotto in elenco:
         voce = _trova(prodotto["nome"], voci)
         q, u = prodotto.get("quantita"), prodotto.get("unita")
@@ -501,7 +523,7 @@ def scala(giorno: datetime.date) -> str:
             nuovi.append(c)
     if not nuovi:
         return ""
-    voci = [v for v in _voci() if (v["quantita"] or 0) > 0]
+    voci = [v for v in _leggi_voci() if (v["quantita"] or 0) > 0]  # per scrivere si legge sempre da Notion
     tolti: dict[str, float] = {}
     saltati = []  # cibi che non vengono da nessuna voce: prima si perdevano in silenzio
     if voci:

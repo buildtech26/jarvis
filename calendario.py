@@ -24,14 +24,30 @@ def configurato() -> bool:
 
 
 def _chiama(azione: str, **dati) -> dict:
-    # Apps Script risponde con un redirect: requests lo segue e legge il JSON finale
-    r = requests.post(
-        os.environ["CALENDARIO_URL"].strip(),
-        json={"token": os.environ["CALENDARIO_TOKEN"].strip(), "azione": azione, **dati},
-        timeout=30,
-    )
-    r.raise_for_status()
-    risposta = r.json()
+    # Apps Script risponde con un redirect: requests lo segue e legge il JSON finale.
+    # A volte (il 14/10 al risveglio dallo standby) Google risponde con una pagina web di errore invece del JSON: una
+    # lettura si riprova una volta dopo 3 s; creare e cancellare no, perché la richiesta potrebbe essere già andata
+    for tentativo in range(2 if azione == "eventi" else 1):
+        if tentativo:
+            time.sleep(3)
+        try:
+            r = requests.post(
+                os.environ["CALENDARIO_URL"].strip(),
+                json={"token": os.environ["CALENDARIO_TOKEN"].strip(), "azione": azione, **dati},
+                timeout=30,
+            )
+            r.raise_for_status()
+            risposta = r.json()
+            break
+        except requests.Timeout:
+            raise  # 30 s già aspettati: riprovare ne aggiungerebbe altri 30
+        except (requests.RequestException, ValueError) as e:
+            errore = e
+    else:
+        if isinstance(errore, ValueError):
+            raise RuntimeError(f"Google Calendar ha risposto con una pagina web invece dei dati "
+                               f"({r.text[:80].strip()!r}): di solito passa da solo, riprova tra poco.")
+        raise errore
     if "errore" in risposta:
         raise RuntimeError(risposta["errore"])
     return risposta

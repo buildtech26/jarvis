@@ -82,7 +82,7 @@ def _calendario() -> str:
 
 
 def _notion() -> str:
-    voci = dispensa._voci()
+    voci = dispensa._leggi_voci()  # la prova deve arrivare a Notion, non alla copia in memoria
     if not voci:
         raise RuntimeError("la dispensa risulta vuota")
     return f"{len(voci)} voci in dispensa"

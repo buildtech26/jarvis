@@ -40,6 +40,10 @@ _http.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Jarvis"
 _stato: dict = {}  # nonce, utente, permutation, header
 CACHE = 60  # secondi in cui un'esportazione già fatta vale ancora (un pasto segnato adesso si vede al più 1 min dopo)
 ATTESA_429 = 8  # secondi prima di riprovare un'esportazione rifiutata per troppe richieste
+# di solito token ed esportazione rispondono in 0,3-0,6 s, ma ogni tanto la risposta non arriva: il 14/10 un'attesa di
+# 30 s finita in "Read timed out", e dentro consigli_alimentazione erano 30 s in più sulla risposta. Meglio rinunciare
+# presto e riprovare una volta (il secondo tentativo è andato in 0,3 s)
+TEMPO = (5, 10)  # secondi per connettersi e per ricevere la risposta
 _cache: dict[tuple, tuple[float, list[dict]]] = {}  # (tipo, da, a) → (time.monotonic(), righe)
 
 
@@ -93,7 +97,7 @@ def _codici():
 
 
 def _gwt(corpo: str) -> str:
-    r = _http.post(f"{BASE_GWT}app", data=corpo.encode("utf-8"), timeout=30, headers={
+    r = _http.post(f"{BASE_GWT}app", data=corpo.encode("utf-8"), timeout=TEMPO, headers={
         "Content-Type": "text/x-gwt-rpc; charset=UTF-8", "X-GWT-Module-Base": BASE_GWT,
         "X-GWT-Permutation": _stato["permutation"]})
     r.raise_for_status()
@@ -152,14 +156,20 @@ def _esporta(tipo: str, da: datetime.date, a: datetime.date) -> list[dict]:
             return list(salvato[1])
         for tentativo in range(2):
             try:
-                if not _ripristina():
+                try:
+                    if not _ripristina():
+                        _accedi()
+                    token = _token()
+                except (_Scaduta, requests.HTTPError):
                     _accedi()
-                token = _token()
-            except (_Scaduta, requests.HTTPError):
-                _accedi()
-                token = _token()
-            r = _http.get(f"{SITO}/export", timeout=30, params={"nonce": token, "generate": tipo, "start": str(da),
-                                                                 "end": str(a)})
+                    token = _token()
+                r = _http.get(f"{SITO}/export", timeout=TEMPO, params={"nonce": token, "generate": tipo,
+                                                                        "start": str(da), "end": str(a)})
+            except (requests.Timeout, requests.ConnectionError) as e:
+                if tentativo:
+                    raise
+                print(f"[cronometer] nessuna risposta ({type(e).__name__}), riprovo")
+                continue
             if r.status_code != 429 or tentativo:
                 break
             time.sleep(ATTESA_429)  # troppe richieste: una sola attesa breve, poi l'errore

@@ -58,6 +58,16 @@ import faulthandler  # noqa: E402
 faulthandler.enable(sys.stderr)
 atexit.register(lambda: print(f"--- chiusura normale {time.strftime('%Y-%m-%d %H:%M:%S')}"))
 
+import logging  # noqa: E402
+
+# avvisi dell'SDK di Gemini che non dicono niente di utile: "Direct use of automatic function calling" compare a ogni
+# avvio e dopo ogni trascrizione, "non-text parts" quando una risposta ha anche chiamate a strumenti (brain._testo le
+# gestisce). Gli altri avvisi dell'SDK restano
+for _nome in ("google_genai.models", "google_genai.types"):  # un filtro vale solo per il logger esatto
+    logging.getLogger(_nome).addFilter(
+        lambda r: not r.getMessage().startswith(("Direct use of automatic function calling",
+                                                 "Warning: there are non-text parts")))
+
 from brain import Jarvis  # noqa: E402  (dopo load_dotenv)
 
 PORTA = 47821

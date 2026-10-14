@@ -80,6 +80,13 @@ _chiamate: dict[str, int] = {}  # richieste Gemini mandate per la domanda in cor
 _attesa = {"gemini": 0.0}
 
 
+def _testo(r) -> str:
+    """Il testo della risposta, senza le parti di ragionamento e senza l'avviso dell'SDK quando ci sono anche
+    chiamate a strumenti ("there are non-text parts in the response")."""
+    contenuto = r.candidates[0].content if r.candidates else None
+    return "".join(p.text for p in (contenuto.parts or []) if p.text and not p.thought).strip() if contenuto else ""
+
+
 def _di_servizio(e: Exception) -> bool:
     """Errori di Gemini o della rete (quota, credito, sovraccarico, timeout): ha senso provare un altro modello.
     Tutto il resto è un errore nel codice di Jarvis, che un altro modello ripeterebbe identico: il 10/10
@@ -375,15 +382,37 @@ class Jarvis:
         for _ in range(MAX_PASSI):
             r = self._genera(modello, contenuti, config)
             if not r.function_calls:
-                return r.text or ""
+                if _testo(r):
+                    return _testo(r)
+                log("  [vuota] Gemini non ha scritto niente: chiedo di nuovo la risposta")
+                break
             # il contenuto del modello va rimandato intero: contiene le firme del ragionamento
             contenuti.append(r.candidates[0].content)
             contenuti.append(types.Content(role="user", parts=[
                 types.Part.from_function_response(name=fc.name, response={"risultato": _esegui(fc.name, dict(fc.args or {}), log)})
                 for fc in r.function_calls
             ]))
-        r = self._genera(modello, contenuti, config.model_copy(update={"tools": None}))
-        return r.text or ""
+        else:
+            log(f"  [passi] {MAX_PASSI} giri di strumenti: chiedo la risposta con i risultati che ho")
+        # il 14/10 la richiesta finale con tools=None restituiva comunque una chiamata a calcola_ricetta e nessun testo:
+        # risposta "Non ho una risposta, signore". Flash-Lite ignora anche mode NONE (provato lo stesso giorno), quindi
+        # alle chiamate che chiede ancora si risponde "non eseguito" e si richiede il testo una volta
+        contenuti.append(types.Content(role="user", parts=[types.Part(text=(
+            "Basta strumenti: rispondi adesso alla mia domanda usando solo i risultati che hai già."))]))
+        finale = config.model_copy(update={"tool_config": types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(mode="NONE"))})
+        r = self._genera(modello, contenuti, finale)
+        if r.function_calls and not _testo(r):
+            log(f"  [passi] chiede ancora {', '.join(fc.name for fc in r.function_calls)}: rispondo che non si può")
+            contenuti.append(r.candidates[0].content)
+            contenuti.append(types.Content(role="user", parts=[
+                types.Part.from_function_response(name=fc.name, response={"risultato": (
+                    "Non eseguito: limite di strumenti raggiunto. Rispondi adesso con i risultati che hai già, e se "
+                    "manca un dato (per esempio le kcal) dillo invece di inventarlo.")})
+                for fc in r.function_calls
+            ]))
+            r = self._genera(modello, contenuti, finale)
+        return _testo(r)
 
     def _genera(self, modello: str, contenuti: list, config):
         _chiamate[modello] = _chiamate.get(modello, 0) + 1  # contata prima: anche una richiesta fallita è partita

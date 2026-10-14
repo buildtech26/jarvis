@@ -30,19 +30,38 @@ def configurato() -> bool:
 
 
 def _chiama(metodo: str, percorso: str, **dati) -> dict:
+    # le letture (GET, query, ricerca) si riprovano una volta anche dopo un 502/503 o una connessione caduta, che su
+    # Notion capitano; le scritture no, perché potrebbero essere già andate a buon fine
+    lettura = metodo == "GET" or percorso.endswith(("/query", "/search"))
+    ripresa = False
     for _ in range(3):
-        r = requests.request(
-            metodo, f"{API}{percorso}", json=dati or None, timeout=30,
-            headers={"Authorization": f"Bearer {os.environ['NOTION_TOKEN'].strip()}", "Notion-Version": VERSIONE},
-        )
-        if r.status_code != 429:
+        try:
+            r = requests.request(
+                metodo, f"{API}{percorso}", json=dati or None, timeout=30,
+                headers={"Authorization": f"Bearer {os.environ['NOTION_TOKEN'].strip()}", "Notion-Version": VERSIONE},
+            )
+        except requests.ConnectionError:
+            if not lettura or ripresa:
+                raise
+            ripresa = True
+            time.sleep(2)
+            continue
+        if r.status_code == 429:
+            time.sleep(float(r.headers.get("Retry-After", 2)))  # troppe richieste: Notion dice quanto aspettare
+        elif r.status_code in (502, 503, 504) and lettura and not ripresa:
+            ripresa = True
+            time.sleep(2)
+        else:
             break
-        time.sleep(float(r.headers.get("Retry-After", 2)))  # troppe richieste: Notion dice quanto aspettare
     if r.status_code == 404:
         raise RuntimeError("Notion non trova la pagina: forse non è collegata all'integrazione Jarvis "
                            "(nella pagina: ••• → Connessioni → Jarvis)")
     if not r.ok:
-        raise RuntimeError(f"Notion {r.status_code}: {r.json().get('message', r.text)[:200]}")
+        try:
+            messaggio = r.json().get("message", r.text)
+        except ValueError:  # pagina di errore in HTML (502 di Cloudflare)
+            messaggio = r.text
+        raise RuntimeError(f"Notion {r.status_code}: {messaggio[:200]}")
     return r.json()
 
 
