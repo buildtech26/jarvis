@@ -202,6 +202,16 @@ def _ricerca_web() -> str:
     return "risponde"
 
 
+def _pagina_web() -> str:
+    """L'indirizzo pubblico della chat (Tailscale Funnel). Il 14/10, chiusa l'app di Tailscale, il servizio restava
+    in "NoState" e Funnel non rispondeva più, mentre la pagina su 127.0.0.1 andava: da qui non si vedeva."""
+    r = requests.get(os.environ["WEB_INDIRIZZO"].strip(), timeout=15)
+    r.raise_for_status()
+    if "J.A.R.V.I.S." not in r.text:
+        raise RuntimeError("risponde, ma non è la pagina di Jarvis")
+    return "risponde"
+
+
 def prove() -> list[tuple[str, str, object]]:
     """(nome, a cosa serve, funzione) dei servizi configurati in questo .env."""
     elenco = [(f"Gemini {m}", "il cervello e la voce" + (" (modello principale)" if i == 0 else " (riserva)"),
@@ -233,6 +243,8 @@ def prove() -> list[tuple[str, str, object]]:
         elenco.append(("Gmail", "leggere e preparare le mail", _gmail))
     if spese.configurato():
         elenco.append(("Spese Live", "quanto ho speso e il saldo", _spese_live))
+    if os.getenv("WEB_INDIRIZZO", "").strip():
+        elenco.append(("Pagina web (Tailscale Funnel)", "aprire Jarvis dal browser da qualsiasi PC", _pagina_web))
     return elenco
 
 

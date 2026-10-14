@@ -68,6 +68,10 @@ def main() -> int:
     stato, intestazioni, corpo = richiesta("/")
     atteso(stato == 200 and b"J.A.R.V.I.S." in corpo and "default-src 'self'" in intestazioni["Content-Security-Policy"]
            and intestazioni["X-Frame-Options"] == "DENY", "pagina e intestazioni", (stato, dict(intestazioni)))
+    stato, intestazioni, corpo = richiesta("/manifest.webmanifest")
+    icone = [i["src"] for i in json.loads(corpo)["icons"]] if stato == 200 else []
+    atteso(stato == 200 and "manifest+json" in intestazioni["Content-Type"]
+           and all(richiesta(i)[0] == 200 for i in icone + ["/icona-180.png"]), "installabile come app", (stato, icone))
     atteso(richiesta("/../.env")[0] == 404 and richiesta("/web.py")[0] == 404, "niente file fuori dalla pagina")
 
     # --- senza sessione non si legge e non si chiede niente ---

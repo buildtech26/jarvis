@@ -32,7 +32,10 @@ TENUTI = 60  # scambi tenuti in memoria per la pagina
 MAX_CORPO = 20_000  # byte di una richiesta
 COOKIE = "jarvis_sessione"
 STATICI = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
-           "/stile.css": ("stile.css", "text/css"), "/icona.png": ("icona.png", "image/png")}
+           "/stile.css": ("stile.css", "text/css"), "/icona.png": ("icona.png", "image/png"),
+           # per installarla come app (telefono e Chrome/Edge)
+           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
+           **{f"/icona-{n}.png": (f"icona-{n}.png", "image/png") for n in (180, 192, 512)}}
 SICUREZZA = {"Content-Security-Policy": "default-src 'self'; img-src 'self'; frame-ancestors 'none'",
              "X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
              "Cache-Control": "no-store"}
