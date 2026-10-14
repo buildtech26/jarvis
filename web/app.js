@@ -131,7 +131,7 @@ $("testo").addEventListener("keydown", (ev) => {
 function adatta() {
   const t = $("testo");
   t.style.height = "auto";
-  t.style.height = `${t.scrollHeight + 2}px`;
+  t.style.height = `${t.scrollHeight}px`;  // senza bordo: dentro la pillola il campo non ne ha
   t.style.overflowY = t.scrollHeight > t.clientHeight + 2 ? "auto" : "hidden";
 }
 $("testo").addEventListener("input", adatta);

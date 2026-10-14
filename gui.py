@@ -23,7 +23,7 @@ BORDO = "#2a2f38"
 TESTO = "#e6e8eb"
 TENUE = "#8b929d"
 ACCENTO = "#4c8dff"
-PULSANTE = "#2f6fe0"  # blu più scuro dell'accento: il bianco sopra si legge
+CONTORNO = "#262a31"  # filo attorno alla barra di scrittura: appena più chiaro del CAMPO
 TESTO_TU = "#a9c6ff"
 ERRORE = "#f47067"
 
@@ -35,6 +35,7 @@ BARRA = PANNELLO
 BARRA_TESTO = BARRA
 
 CANALI = {"telegram": "✈ da Telegram", "web": "🌐 dalla pagina web"}
+RIGHE_MAX = 6  # oltre, il campo scorre invece di crescere
 MOD_ALT, MOD_NOREPEAT, WM_HOTKEY = 0x0001, 0x4000, 0x0312
 
 
@@ -46,36 +47,45 @@ def saluto() -> tuple:
     return ("Jarvis", f"{testo}, Mattia", "jarvis", "")
 
 
-def _pulsante(lato: int, stato: str) -> ImageTk.PhotoImage:
-    """Pulsante d'invio rotondo in stile HUD: alone, anello turchese e aeroplanino di carta.
-
-    stato: 'normale' o 'sopra' (mouse sopra).
-    """
+def _pillola(larghezza: int, altezza: int, margine: int, raggio: int) -> ImageTk.PhotoImage:
+    """La barra di scrittura a pillola, come quella di Gemini ma nei colori scuri (scelta dell'utente del 14/10):
+    fondo CAMPO, un filo di contorno e un'ombra morbida sotto. larghezza e altezza comprendono il margine attorno.
+    Disegnata con PIL: i rettangoli arrotondati non esistono in Tk e i cerchi del Canvas hanno i bordi seghettati."""
     from PIL import ImageDraw, ImageFilter
 
-    s = 4  # si disegna 4 volte più grande e poi si riduce: bordi lisci
+    # l'ombra a grandezza reale (sfocarla 4 volte più grande era lento durante il ridimensionamento)
+    ombra = Image.new("RGBA", (larghezza, altezza), (0, 0, 0, 0))
+    ImageDraw.Draw(ombra).rounded_rectangle((margine, margine + 3, larghezza - margine, altezza - margine + 3),
+                                           radius=raggio, fill=(0, 0, 0, 170))
+    img = Image.new("RGBA", (larghezza, altezza), SFONDO)
+    img.alpha_composite(ombra.filter(ImageFilter.GaussianBlur(6)))
+
+    s = 4  # la pillola invece 4 volte più grande e poi ridotta: bordi lisci
+    pillola = Image.new("RGBA", (larghezza * s, altezza * s), (0, 0, 0, 0))
+    ImageDraw.Draw(pillola).rounded_rectangle(
+        (margine * s, margine * s, (larghezza - margine) * s, (altezza - margine) * s), radius=raggio * s,
+        fill=CAMPO, outline=CONTORNO, width=s)
+    img.alpha_composite(pillola.resize((larghezza, altezza), Image.LANCZOS))
+    return ImageTk.PhotoImage(img)
+
+
+def _freccia(lato: int, stato: str) -> ImageTk.PhotoImage:
+    """L'aeroplanino d'invio dentro la pillola, dove Gemini ha il microfono. stato: 'normale' o 'sopra' (mouse
+    sopra: gli compare dietro un cerchio, come alle icone di Gemini)."""
+    from PIL import ImageDraw
+
+    s = 4
     n = lato * s
-    m = 5 * s  # spazio per l'alone attorno all'anello
-    pieno = stato == "sopra"
-    riempimento = PULSANTE if pieno else "#181c22"
-
-    alone = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    ImageDraw.Draw(alone).ellipse((m, m, n - m, n - m), outline=ACCENTO, width=4 * s)
-    alone = alone.filter(ImageFilter.GaussianBlur(3 * s))
-    intensita = 0.5 if stato != "normale" else 0.15  # alone appena accennato, non neon
-    alone.putalpha(alone.getchannel("A").point(lambda a: int(a * intensita)))
-
     img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    img.alpha_composite(alone)
     d = ImageDraw.Draw(img)
-    d.ellipse((m, m, n - m, n - m), fill=riempimento, outline=ACCENTO, width=2 * s)
+    if stato == "sopra":
+        d.ellipse((0, 0, n - 1, n - 1), fill=BORDO)
 
     def p(x, y):  # coordinate relative (0-1) del pulsante
         return (x * n, y * n)
 
-    colore = "#ffffff" if pieno else ACCENTO
-    # aeroplanino di carta: punta a destra, coda incavata
-    d.polygon([p(0.31, 0.30), p(0.73, 0.50), p(0.31, 0.70), p(0.39, 0.50)], fill=colore)
+    # punta a destra, coda incavata
+    d.polygon([p(0.31, 0.30), p(0.73, 0.50), p(0.31, 0.70), p(0.39, 0.50)], fill=ACCENTO)
     return ImageTk.PhotoImage(img.resize((lato, lato), Image.LANCZOS))
 
 
@@ -154,10 +164,11 @@ class Finestra:
         ).pack(side="right")
         tk.Frame(self.root, bg=BORDO, height=1).pack(fill="x")
 
-        # la barra di scrittura va fissata in basso PRIMA della chat, sennò se manca spazio sparisce lei
-        piede = tk.Frame(self.root, bg=PANNELLO, padx=self._px(12), pady=self._px(12))
-        piede.pack(side="bottom", fill="x")
-        tk.Frame(self.root, bg=BORDO, height=1).pack(side="bottom", fill="x")
+        # la barra di scrittura va fissata in basso PRIMA della chat, sennò se manca spazio sparisce lei. È una
+        # pillola che galleggia sullo sfondo della chat, come in Gemini: Canvas con l'immagine della pillola, sopra
+        # il campo di testo e la freccia d'invio
+        self.piede = tk.Canvas(self.root, bg=SFONDO, highlightthickness=0, bd=0, height=self._px(76))
+        self.piede.pack(side="bottom", fill="x")
 
         self.tela = tk.Canvas(self.root, bg=SFONDO, highlightthickness=0, bd=0, yscrollincrement=self._px(20))
         self.tela.pack(fill="both", expand=True)
@@ -165,26 +176,58 @@ class Finestra:
         for widget in (self.tela, self.root):
             widget.bind("<MouseWheel>", self._rotella)
 
-        # invio a destra, il campo prende lo spazio che resta. Il pulsante è un'immagine disegnata con PIL a
-        # risoluzione quadrupla: i cerchi del Canvas di Tk hanno i bordi seghettati
-        lato = self._px(48)
-        self.img_invia = {s: _pulsante(lato, s) for s in ("normale", "sopra")}
-
-        self.btn_invia = tk.Label(piede, image=self.img_invia["normale"], bg=PANNELLO, bd=0, cursor="hand2")
-        self.btn_invia.bind("<Button-1>", lambda e: self._invia())
-        self.btn_invia.bind("<Enter>", lambda e: self.btn_invia.config(image=self.img_invia["sopra"]))
-        self.btn_invia.bind("<Leave>", lambda e: self.btn_invia.config(image=self.img_invia["normale"]))
-        self.btn_invia.pack(side="right", padx=(self._px(8), 0))
-
-        cornice = tk.Frame(piede, bg=CAMPO, padx=self._px(10), pady=self._px(6),
-                           highlightthickness=1, highlightbackground=BORDO, highlightcolor=ACCENTO)
-        cornice.pack(side="left", fill="both", expand=True)
+        self.riga = tkfont.Font(font=self.f_testo).metrics("linespace")
+        self.img_freccia = {s: _freccia(self._px(40), s) for s in ("normale", "sopra")}
+        self.img_pillola = None  # riferimento tenuto qui: senza, Tk cancella l'immagine
+        self._misure_pillola = None
         self.campo = tk.Text(
-            cornice, height=2, width=1, wrap="word", bg=CAMPO, fg=TESTO, insertbackground=ACCENTO, font=self.f_testo,
-            relief="flat", bd=0, highlightthickness=0,
+            self.piede, height=1, width=1, wrap="word", bg=CAMPO, fg=TESTO, insertbackground=ACCENTO,
+            font=self.f_testo, relief="flat", bd=0, highlightthickness=0, padx=0, pady=0,
         )
-        self.campo.pack(fill="both", expand=True)
+        self.id_pillola = self.piede.create_image(0, 0, anchor="nw")
+        self.id_campo = self.piede.create_window(0, 0, anchor="nw", window=self.campo)
+        self.id_invia = self.piede.create_image(0, 0, image=self.img_freccia["normale"])
+        self.piede.tag_bind(self.id_invia, "<Button-1>", lambda e: self._invia())
+        self.piede.tag_bind(self.id_invia, "<Enter>", lambda e: self._freccia_sopra(True))
+        self.piede.tag_bind(self.id_invia, "<Leave>", lambda e: self._freccia_sopra(False))
+        self.piede.bind("<Configure>", lambda e: self._disponi_barra())
         self.campo.bind("<Return>", self._invio)
+        self.campo.bind("<KeyRelease>", lambda e: self._disponi_barra())  # anche Maiusc+Invio e Ctrl+V
+
+    def _freccia_sopra(self, sopra: bool):
+        self.piede.itemconfig(self.id_invia, image=self.img_freccia["sopra" if sopra else "normale"])
+        self.piede.config(cursor="hand2" if sopra else "")
+
+    def _righe_campo(self) -> int:
+        # le righe come vanno a capo sullo schermo; a finestra nascosta il campo è largo 1 pixel e ogni lettera
+        # conterebbe come una riga
+        if not self.campo.winfo_ismapped():
+            return 1
+        righe = int(self.campo.tk.call(self.campo._w, "count", "-displaylines", "1.0", "end"))
+        return max(1, min(RIGHE_MAX, righe))
+
+    def _disponi_barra(self):
+        """Pillola, campo e freccia: il campo cresce con il testo fino a RIGHE_MAX righe, come in Gemini; la freccia
+        resta in basso a destra, sull'ultima riga."""
+        w = self.piede.winfo_width()
+        if w < self._px(120):
+            return
+        m, pad_v, pad_sx = self._px(12), self._px(15), self._px(22)
+        alta_una = self.riga + 2 * pad_v  # la pillola con una riga sola: le sue estremità sono mezzi cerchi
+        x_freccia = w - m - alta_una // 2
+        self.piede.coords(self.id_campo, m + pad_sx, m + pad_v)
+        self.piede.itemconfig(self.id_campo, width=max(self._px(40), x_freccia - self._px(26) - m - pad_sx))
+        self.campo.update_idletasks()  # la nuova larghezza prima di contare le righe
+        righe = self._righe_campo()
+        h = righe * self.riga + 2 * pad_v
+        self.piede.itemconfig(self.id_campo, height=righe * self.riga)
+        self.piede.coords(self.id_invia, x_freccia, m + h - alta_una // 2)
+        if (w, h) != self._misure_pillola:
+            self._misure_pillola = (w, h)
+            self.img_pillola = _pillola(w, h + 2 * m, m, alta_una // 2)
+            self.piede.itemconfig(self.id_pillola, image=self.img_pillola)
+            self.piede.config(height=h + 2 * m)
+        self.campo.see("insert")
 
     # ---------- chat disegnata ----------
 
@@ -251,6 +294,7 @@ class Finestra:
         if testo is None:
             testo = self.campo.get("1.0", "end").strip()
             self.campo.delete("1.0", "end")
+            self._disponi_barra()  # la pillola torna a una riga
         if not testo or self.occupato:
             return
         if testo.lower() == "/riavvia":
