@@ -10,6 +10,7 @@ import requests
 
 import alimentazione
 import allenamento
+import backup
 import brain
 import calendario
 import controllo
@@ -152,14 +153,16 @@ class BotTelegram:
             time.sleep(60)
 
     def ciclo_controllo(self):
-        """Il controllo dei servizi esterni del mattino (controllo.py): arriva un messaggio solo se qualcosa è rotto."""
+        """Il controllo dei servizi esterni del mattino (controllo.py) e il backup della sera (backup.py): arriva un
+        messaggio solo se qualcosa è rotto."""
         while True:
-            if self._rete_pronta():  # senza rete il controllo darebbe tutto rotto
-                try:
-                    for testo in controllo.controlla():
-                        self.consegna(testo)
-                except Exception as e:
-                    print(f"[controllo] errore: {e}")
+            if self._rete_pronta():  # senza rete il controllo darebbe tutto rotto e il push non partirebbe
+                for modulo in (controllo, backup):
+                    try:
+                        for testo in modulo.controlla():
+                            self.consegna(testo)
+                    except Exception as e:
+                        print(f"[{modulo.__name__}] errore: {e}")
             time.sleep(60)
 
     def manda_parcheggio(self, chat_id):
@@ -225,6 +228,12 @@ class BotTelegram:
         if testo == "/controllo":
             self.scrive(chat_id)
             self.invia(chat_id, controllo.rapporto())  # circa 10 s: tutte le prove in parallelo
+            return
+        if testo == "/backup":
+            self.scrive(chat_id)
+            problemi = backup.esegui()
+            self.invia(chat_id, "💾 Backup fatto: zip cifrato in OneDrive e codice su GitHub." if not problemi
+                       else "💾 Backup con problemi: " + "; ".join(problemi))
             return
         if testo == "/treni":
             self.invia(chat_id, ritardi.treni_seguiti())
