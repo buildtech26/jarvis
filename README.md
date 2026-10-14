@@ -31,8 +31,8 @@ Funziona finché il PC è acceso e lo script gira.
 L'icona **Jarvis** sul desktop la apre col mouse (`crea_icona.py` la ricrea). Nella finestra: 🎤 per parlare senza
 "Hey Jarvis", "voce sì/no" per sentire anche le risposte scritte, "Nuova" per azzerare la conversazione.
 Mostra anche gli scambi fatti a voce e su Telegram: la conversazione è una sola. Codice in `gui.py`.
-Lo sfondo è `immagini/sfera.png`, ritagliata dall'immagine di riferimento in `immagini/` con il bordo sfumato in
-trasparenza; si illumina e pulsa mentre Jarvis pensa, ascolta o parla.
+Lo sfondo è tinta unita (la sfera centrale è stata tolta su scelta dell'utente): mentre Jarvis pensa, ascolta o parla
+lo dice la scritta di stato in alto.
 
 ## Avvio automatico
 

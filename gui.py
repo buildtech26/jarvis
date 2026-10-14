@@ -1,7 +1,6 @@
 """Finestra di chat in stile J.A.R.V.I.S.: Alt+J la apre e la chiude da qualsiasi programma, Esc la nasconde.
 
-La chat è disegnata su un Canvas (non un widget Text) perché sotto deve vedersi la sfera di sfondo,
-che si illumina e pulsa mentre Jarvis pensa o ascolta.
+La chat è disegnata su un Canvas: sfondo in tinta unita, senza la sfera centrale (scelta dell'utente).
 """
 import ctypes
 import ctypes.wintypes
@@ -12,10 +11,9 @@ import time
 import tkinter as tk
 from tkinter import font as tkfont
 
-from PIL import Image, ImageEnhance, ImageTk
+from PIL import Image, ImageTk
 
 CARTELLA = os.path.dirname(os.path.abspath(__file__))
-SFERA = os.path.join(CARTELLA, "immagini", "sfera.png")
 
 # grafite e blu, gli stessi colori della pagina web (web/stile.css)
 SFONDO = "#0d0f12"
@@ -35,10 +33,6 @@ BARRA = PANNELLO
 # scritta dello stesso colore della barra: nella finestra il nome non si vede (scelta dell'utente),
 # ma il titolo resta per Alt+Tab e la barra delle applicazioni
 BARRA_TESTO = BARRA
-
-# luminosità della sfera: a riposo appena visibile, poi i passi della pulsazione mentre lavora
-RIPOSO = 0.18
-PULSAZIONE = [0.30, 0.42, 0.55, 0.42]
 
 CANALI = {"voce": "🎙 a voce", "telegram": "✈ da Telegram", "web": "🌐 dalla pagina web"}
 MOD_ALT, MOD_NOREPEAT, WM_HOTKEY = 0x0001, 0x4000, 0x0312
@@ -99,9 +93,6 @@ class Finestra:
         self.coda: queue.Queue = queue.Queue()  # tkinter va toccato solo dal thread principale
         self.occupato = False
         self.messaggi: list[tuple[str, str, str, str]] = []  # (chi, testo, stile, nota): ridisegnati a ogni resize
-        self._passo = 0
-        self._sfere: dict[float, ImageTk.PhotoImage] = {}
-        self._lato_sfera = 0
         jarvis.ascoltatori.append(self._da_altro_canale)
 
         try:
@@ -131,7 +122,6 @@ class Finestra:
         self.f_piccolo = (carattere, 9)
         self.f_titolo = (carattere, 14, "bold")
 
-        self.sfera_originale = Image.open(SFERA).convert("RGBA") if os.path.exists(SFERA) else None
         self._costruisci()
         self.voce_attiva = tk.BooleanVar(value=False)
         self._aggiorna_voce()
@@ -139,7 +129,6 @@ class Finestra:
 
         threading.Thread(target=self._tasto_rapido, daemon=True).start()
         self.root.after(80, self._svuota_coda)
-        self.root.after(450, self._pulsa)
 
     def _px(self, valore: float) -> int:
         return int(valore * self.scala)
@@ -187,7 +176,6 @@ class Finestra:
 
         self.tela = tk.Canvas(self.root, bg=SFONDO, highlightthickness=0, bd=0, yscrollincrement=self._px(20))
         self.tela.pack(fill="both", expand=True)
-        self.id_sfera = self.tela.create_image(0, 0, anchor="center")
         self.tela.bind("<Configure>", lambda e: self._dopo_resize())
         for widget in (self.tela, self.root):
             widget.bind("<MouseWheel>", self._rotella)
@@ -221,36 +209,6 @@ class Finestra:
         self.campo.pack(fill="both", expand=True)
         self.campo.bind("<Return>", self._invio)
 
-    # ---------- sfera di sfondo ----------
-
-    def _immagine_sfera(self, luce: float):
-        if self.sfera_originale is None:
-            return None
-        if luce not in self._sfere:
-            img = self.sfera_originale.resize((self._lato_sfera, self._lato_sfera), Image.LANCZOS)
-            # si scurisce solo il colore: il canale alpha (bordo sfumato) resta com'è
-            colore = ImageEnhance.Brightness(img.convert("RGB")).enhance(luce)
-            colore.putalpha(img.getchannel("A"))
-            self._sfere[luce] = ImageTk.PhotoImage(colore)
-        return self._sfere[luce]
-
-    def _luce(self, luce: float):
-        img = self._immagine_sfera(luce)
-        if img is not None:
-            self.tela.itemconfig(self.id_sfera, image=img)
-
-    def _centra_sfera(self):
-        w, h = self.tela.winfo_width(), self.tela.winfo_height()
-        # la sfera resta ferma al centro della parte visibile anche quando la chat scorre
-        self.tela.coords(self.id_sfera, w / 2, self.tela.canvasy(0) + h / 2)
-        self.tela.tag_lower(self.id_sfera)
-
-    def _pulsa(self):
-        if self.occupato:
-            self._passo = (self._passo + 1) % len(PULSAZIONE)
-            self._luce(PULSAZIONE[self._passo])
-        self.root.after(450, self._pulsa)
-
     # ---------- chat disegnata ----------
 
     def _dopo_resize(self):
@@ -260,12 +218,6 @@ class Finestra:
 
     def _applica_resize(self):
         self._attesa_resize = None
-        w, h = self.tela.winfo_width(), self.tela.winfo_height()
-        lato = int(min(w, h) * 0.92)
-        if lato > 10 and lato != self._lato_sfera:
-            self._lato_sfera = lato
-            self._sfere.clear()  # le versioni già pronte sono della misura vecchia
-            self._luce(PULSAZIONE[self._passo] if self.occupato else RIPOSO)
         self._ridisegna()
 
     def _ridisegna(self):
@@ -284,19 +236,15 @@ class Finestra:
                 y = self.tela.bbox(id_nome)[3] + self._px(3)
             colore = {"tu": TESTO_TU, "info": TENUE, "errore": ERRORE}.get(stile, TESTO)
             carattere = self.f_piccolo if stile == "info" else self.f_testo
-            # ombra nera sotto il testo: resta leggibile anche sopra le parti chiare della sfera
-            for dx, dy, c in ((1, 1, "black"), (0, 0, colore)):
-                ultimo = self.tela.create_text(x + dx, y + dy, text=testo, anchor=ancora, justify=allinea,
-                                               width=larghezza_testo, fill=c, font=carattere, tags="msg")
+            ultimo = self.tela.create_text(x, y, text=testo, anchor=ancora, justify=allinea,
+                                           width=larghezza_testo, fill=colore, font=carattere, tags="msg")
             y = self.tela.bbox(ultimo)[3] + self._px(16)
         h = self.tela.winfo_height()
         self.tela.configure(scrollregion=(0, 0, w, max(y, h)))
         self.tela.yview_moveto(1.0)
-        self._centra_sfera()
 
     def _rotella(self, evento):
         self.tela.yview_scroll(int(-evento.delta / 120), "units")
-        self._centra_sfera()
 
     def _messaggio(self, chi: str, testo: str, stile: str, nota: str = ""):
         self.messaggi.append((chi, testo, stile, nota))
@@ -308,8 +256,6 @@ class Finestra:
 
     def _imposta_stato(self, testo: str, colore: str = TENUE):
         self.stato.config(text=testo, fg=colore)
-        if not self.occupato:
-            self._luce(RIPOSO)
 
     def _aggiorna_voce(self):
         attiva = self.voce_attiva.get()
