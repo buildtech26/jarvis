@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 
 CARTELLA = Path(os.getenv("JARVIS_DIARIO", Path.home() / "Desktop" / "obsidian" / "Jarvis" / "Diario"))
-CANALI = {"app": "finestra", "voce": "voce", "telegram": "Telegram", "": "terminale"}
+CANALI = {"app": "finestra", "voce": "voce", "telegram": "Telegram", "web": "pagina web", "": "terminale"}
 _lock = threading.Lock()
 _GIORNI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 

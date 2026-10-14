@@ -37,7 +37,7 @@ BARRA_TESTO = ACCENTO
 RIPOSO = 0.18
 PULSAZIONE = [0.30, 0.42, 0.55, 0.42]
 
-CANALI = {"voce": "🎙 a voce", "telegram": "✈ da Telegram"}
+CANALI = {"voce": "🎙 a voce", "telegram": "✈ da Telegram", "web": "🌐 dalla pagina web"}
 MOD_ALT, MOD_NOREPEAT, WM_HOTKEY = 0x0001, 0x4000, 0x0312
 
 

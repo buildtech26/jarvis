@@ -178,6 +178,12 @@ def main():
         else:
             avvia_telegram(jarvis, in_background=True)
             avvia_voce(jarvis)
+            try:
+                import web
+
+                web.avvia(jarvis)  # la chat nel browser, da fuori con Tailscale Funnel
+            except OSError as e:  # porta occupata: il resto di Jarvis deve partire lo stesso
+                print(f"[web] pagina non avviata: {e}")
             from gui import Finestra
 
             finestra = Finestra(jarvis)

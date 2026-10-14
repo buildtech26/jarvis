@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Jarvis</title>
+  <link rel="icon" href="/icona.png">
+  <link rel="stylesheet" href="/stile.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <img src="/icona.png" alt="" class="logo">
+    <h1>J.A.R.V.I.S.</h1>
+    <button id="esci" class="secondario" hidden>Esci</button>
+  </header>
+
+  <main id="accesso" hidden>
+    <form id="modulo-accesso">
+      <p class="tenue">Pagina privata. Su un PC non tuo, alla fine premi Esci.</p>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required autofocus>
+      <button type="submit">Entra</button>
+      <p id="errore-accesso" class="errore" role="alert"></p>
+    </form>
+  </main>
+
+  <main id="chat" hidden>
+    <div id="messaggi" aria-live="polite"></div>
+    <p id="fase" class="tenue"></p>
+    <form id="modulo-chat">
+      <textarea id="testo" rows="1" placeholder="Scrivi a Jarvis…" required></textarea>
+      <button type="submit" id="invia">Invia</button>
+    </form>
+  </main>
+</body>
+</html>
