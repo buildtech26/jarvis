@@ -1,7 +1,9 @@
-/* gli stessi colori della finestra di Jarvis (gui.py) */
+/* gli stessi colori della finestra di Jarvis (gui.py): grafite e blu */
 :root {
-  --sfondo: #020b0d; --pannello: #041619; --campo: #0a2428; --bordo: #12464a;
-  --testo: #d8f6f3; --tenue: #5e8f8b; --accento: #3fe0d0; --testo-tu: #8ff3ea; --errore: #ff7b7b;
+  --sfondo: #0d0f12; --pannello: #15181d; --campo: #1c2027; --bordo: #2a2f38;
+  --testo: #e6e8eb; --tenue: #8b929d; --accento: #4c8dff; --testo-tu: #e6e8eb; --errore: #f47067;
+  --bolla-tu: #1b2a44;   /* blu scuro: distingue i tuoi messaggi senza colorare il testo */
+  --pulsante: #2f6fe0;   /* blu più scuro dell'accento: il bianco sopra si legge (contrasto 4,7:1) */
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -14,7 +16,7 @@ header {
   display: flex; align-items: center; gap: 12px; padding: 10px 16px;
   background: var(--pannello); border-bottom: 1px solid var(--bordo);
 }
-header h1 { font-size: 18px; letter-spacing: 3px; color: var(--accento); margin: 0; flex: 1; }
+header h1 { font-size: 17px; font-weight: 600; letter-spacing: 2px; color: var(--testo); margin: 0; flex: 1; }
 .logo { width: 32px; height: 32px; border-radius: 50%; }
 main { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; max-width: 860px; margin: 0 auto; }
 main[hidden] { display: none; }
@@ -22,7 +24,7 @@ main[hidden] { display: none; }
 #modulo-accesso { display: flex; flex-direction: column; gap: 10px; max-width: 360px; width: 100%; margin: 0 auto; }
 #messaggi { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .bolla { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bolla.tu { align-self: flex-end; background: var(--campo); color: var(--testo-tu); border-bottom-right-radius: 4px; }
+.bolla.tu { align-self: flex-end; background: var(--bolla-tu); color: var(--testo-tu); border-bottom-right-radius: 4px; }
 .bolla.jarvis { align-self: flex-start; background: var(--pannello); border: 1px solid var(--bordo);
                 border-bottom-left-radius: 4px; }
 .bolla.attesa { opacity: .6; }
@@ -37,7 +39,7 @@ textarea, input {
 textarea { overflow-y: hidden; }  /* la barra compare solo oltre max-height (app.js) */
 textarea:focus, input:focus { outline: none; border-color: var(--accento); }
 button {
-  background: var(--accento); color: var(--sfondo); border: 0; border-radius: 10px; padding: 10px 18px;
+  background: var(--pulsante); color: #fff; border: 0; border-radius: 10px; padding: 10px 18px;
   font: inherit; font-weight: 600; cursor: pointer;
 }
 button:disabled { opacity: .5; cursor: default; }

@@ -17,21 +17,22 @@ from PIL import Image, ImageEnhance, ImageTk
 CARTELLA = os.path.dirname(os.path.abspath(__file__))
 SFERA = os.path.join(CARTELLA, "immagini", "sfera.png")
 
-# nero-petrolio e turchese, come l'interfaccia di riferimento in immagini/
-SFONDO = "#020b0d"
-PANNELLO = "#041619"
-CAMPO = "#0a2428"
-BORDO = "#12464a"
-TESTO = "#d8f6f3"
-TENUE = "#5e8f8b"
-ACCENTO = "#3fe0d0"
-TESTO_TU = "#8ff3ea"
-ERRORE = "#ff7b7b"
+# grafite e blu, gli stessi colori della pagina web (web/stile.css)
+SFONDO = "#0d0f12"
+PANNELLO = "#15181d"
+CAMPO = "#1c2027"
+BORDO = "#2a2f38"
+TESTO = "#e6e8eb"
+TENUE = "#8b929d"
+ACCENTO = "#4c8dff"
+PULSANTE = "#2f6fe0"  # blu più scuro dell'accento: il bianco sopra si legge
+TESTO_TU = "#a9c6ff"
+ERRORE = "#f47067"
 
 # barra del titolo di Windows (quella con il nome e i pulsanti chiudi/riduci)
 TITOLO = "J.A.R.V.I.S."
 BARRA = PANNELLO
-BARRA_TESTO = ACCENTO
+BARRA_TESTO = TESTO
 
 # luminosità della sfera: a riposo appena visibile, poi i passi della pulsazione mentre lavora
 RIPOSO = 0.18
@@ -59,14 +60,14 @@ def _pulsante(lato: int, tipo: str, stato: str) -> ImageTk.PhotoImage:
     n = lato * s
     m = 5 * s  # spazio per l'alone attorno all'anello
     pieno = tipo == "invio" and stato == "sopra"
-    riempimento = {"normale": "#06191c", "sopra": "#0d3236", "attivo": "#12464a"}[stato]
+    riempimento = {"normale": "#181c22", "sopra": "#1f2a3d", "attivo": "#24395e"}[stato]
     if pieno:
-        riempimento = ACCENTO
+        riempimento = PULSANTE
 
     alone = Image.new("RGBA", (n, n), (0, 0, 0, 0))
     ImageDraw.Draw(alone).ellipse((m, m, n - m, n - m), outline=ACCENTO, width=4 * s)
     alone = alone.filter(ImageFilter.GaussianBlur(3 * s))
-    intensita = 0.9 if stato != "normale" else 0.5
+    intensita = 0.5 if stato != "normale" else 0.15  # alone appena accennato, non neon
     alone.putalpha(alone.getchannel("A").point(lambda a: int(a * intensita)))
 
     img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
@@ -77,7 +78,7 @@ def _pulsante(lato: int, tipo: str, stato: str) -> ImageTk.PhotoImage:
     def p(x, y):  # coordinate relative (0-1) del pulsante
         return (x * n, y * n)
 
-    colore = SFONDO if pieno else (TESTO if stato == "attivo" else ACCENTO)
+    colore = "#ffffff" if pieno else (TESTO if stato == "attivo" else ACCENTO)
     if tipo == "invio":
         # aeroplanino di carta: punta a destra, coda incavata
         d.polygon([p(0.31, 0.30), p(0.73, 0.50), p(0.31, 0.70), p(0.39, 0.50)], fill=colore)
@@ -162,7 +163,7 @@ class Finestra:
     def _costruisci(self):
         testata = tk.Frame(self.root, bg=PANNELLO, padx=self._px(16), pady=self._px(10))
         testata.pack(fill="x")
-        tk.Label(testata, text="J.A.R.V.I.S.", font=self.f_titolo, fg=ACCENTO, bg=PANNELLO).pack(side="left")
+        tk.Label(testata, text="J.A.R.V.I.S.", font=self.f_titolo, fg=TESTO, bg=PANNELLO).pack(side="left")
         self.stato = tk.Label(testata, text="pronto", font=self.f_piccolo, fg=TENUE, bg=PANNELLO)
         self.stato.pack(side="left", padx=(self._px(10), 0), pady=(self._px(3), 0))
         self.btn_voce = tk.Button(
