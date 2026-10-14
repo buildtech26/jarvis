@@ -163,9 +163,9 @@ class Finestra:
     def _costruisci(self):
         testata = tk.Frame(self.root, bg=PANNELLO, padx=self._px(16), pady=self._px(10))
         testata.pack(fill="x")
-        tk.Label(testata, text="J.A.R.V.I.S.", font=self.f_titolo, fg=TESTO, bg=PANNELLO).pack(side="left")
+        # niente nome in alto (scelta dell'utente): resta solo lo stato
         self.stato = tk.Label(testata, text="pronto", font=self.f_piccolo, fg=TENUE, bg=PANNELLO)
-        self.stato.pack(side="left", padx=(self._px(10), 0), pady=(self._px(3), 0))
+        self.stato.pack(side="left")
         self.btn_voce = tk.Button(
             testata, font=self.f_piccolo, relief="flat", bd=0, padx=8, pady=2, cursor="hand2",
             activebackground=CAMPO, command=self._cambia_voce,
@@ -273,11 +273,11 @@ class Finestra:
         for chi, testo, stile, nota in self.messaggi:
             destra = stile == "tu"
             x, ancora, allinea = (w - margine, "ne", "right") if destra else (margine, "nw", "left")
-            colore_nome = TENUE if destra else ACCENTO
-            if stile != "info":
-                intestazione = chi.upper() + (f"  ·  {nota}" if nota else "")
-                id_nome = self.tela.create_text(x, y, text=intestazione, anchor=ancora, justify=allinea,
-                                                fill=colore_nome, font=self.f_piccolo, tags="msg")
+            # niente nome sopra i messaggi (scelta dell'utente): chi parla si vede dal lato e dal colore,
+            # sopra resta solo la nota (ora e canale) quando c'è
+            if stile != "info" and nota:
+                id_nome = self.tela.create_text(x, y, text=nota, anchor=ancora, justify=allinea,
+                                                fill=TENUE, font=self.f_piccolo, tags="msg")
                 y = self.tela.bbox(id_nome)[3] + self._px(3)
             colore = {"tu": TESTO_TU, "info": TENUE, "errore": ERRORE}.get(stile, TESTO)
             carattere = self.f_piccolo if stile == "info" else self.f_testo
