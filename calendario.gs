@@ -3,6 +3,8 @@
  * Si installa su https://script.google.com come "App web": esegui come "Me", accesso "Chiunque".
  * Senza il TOKEN giusto non risponde, quindi l'URL da solo non basta per leggere il calendario.
  */
+// lo stesso valore di CALENDARIO_TOKEN nel .env: va scritto solo nella copia su script.google.com, mai qui (il
+// repository è su GitHub; il 14/10 il token vero è stato tolto da tutta la storia)
 const TOKEN = 'METTI_QUI_CALENDARIO_TOKEN';
 
 function doPost(e) {
