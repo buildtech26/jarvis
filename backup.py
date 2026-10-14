@@ -89,6 +89,11 @@ def crea_zip(password: str) -> tuple[Path, int]:
 
 def carica_su_github() -> str:
     """git push di rami e tag; '' se è andato bene (o non c'era niente da caricare), se no l'errore."""
+    if os.getenv("JARVIS_MODO") == "servizio":
+        # il servizio gira senza accesso a Windows: le credenziali di git (Gestione credenziali) non si possono
+        # leggere. I commit li carica il backup del Jarvis completo (git push manda tutto quello che manca)
+        print("[backup] servizio senza accesso a Windows: push su GitHub rimandato")
+        return ""
     for argomenti in (["push", "-q", "origin", "--all"], ["push", "-q", "origin", "--tags"]):
         r = subprocess.run(["git", *argomenti], cwd=CARTELLA, capture_output=True, text=True, timeout=120,
                            creationflags=NO_FINESTRA)

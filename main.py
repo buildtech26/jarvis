@@ -5,6 +5,9 @@
     uv run main.py voce       solo voce
     uv run main.py telegram   solo Telegram
     uv run main.py testo      chat da terminale, utile per provare
+    uv run main.py servizio   Telegram, pagina web e messaggi automatici, senza finestra né voce: lo avvia
+                              sorveglia.py all'accensione (anche prima dell'accesso a Windows) e se Jarvis si ferma;
+                              quando parte la versione completa, il servizio le cede il posto
 """
 import os
 import site
@@ -74,21 +77,45 @@ PORTA = 47821
 _su_richiesta = []  # funzioni da chiamare quando un secondo avvio chiede di mostrare la finestra
 # l'avvio dura circa un minuto: un clic sull'icona in quel tempo arriva prima che la finestra esista e andava perso
 _richiesta_in_anticipo = threading.Event()
+_attivi: dict = {}  # "jarvis" e "bot", per il passaggio di consegne del servizio (_cedi)
+
+
+def _occupa_porta() -> socket.socket | None:
+    server = socket.socket()
+    try:
+        server.bind(("127.0.0.1", PORTA))
+    except OSError:
+        server.close()
+        return None
+    return server
 
 
 def unica_istanza(modo: str):
     """Una sola copia: due bot si rubano i messaggi (errore 409 di Telegram).
 
-    Il secondo avvio (es. l'icona sul desktop) non parte: chiede alla copia attiva di mostrare la finestra.
+    Il secondo avvio (es. l'icona sul desktop) chiede alla copia attiva "cedi": se è il servizio (senza finestra) le
+    cede il posto e il secondo avvio prende il suo; se è la versione completa mostra la finestra e il secondo avvio
+    esce. Un servizio che trova Jarvis già acceso esce e basta.
     """
-    server = socket.socket()
-    try:
-        server.bind(("127.0.0.1", PORTA))
-    except OSError:
-        if modo in ("tutto", "mostra"):
+    server = _occupa_porta()
+    if server is None and modo in ("tutto", "mostra"):
+        try:
             with socket.create_connection(("127.0.0.1", PORTA), timeout=5) as c:
-                c.sendall(b"mostra")
-        print("Jarvis è già in esecuzione.")
+                c.sendall(b"cedi")
+                c.settimeout(180)  # il servizio aspetta la fine della domanda in corso
+                risposta = c.recv(16)
+        except OSError:
+            risposta = b""
+        if risposta == b"ceduto":
+            scadenza = time.time() + 120
+            while server is None and time.time() < scadenza:
+                time.sleep(1)
+                server = _occupa_porta()
+            if server is not None:
+                print("[servizio] il Jarvis senza finestra ha ceduto il posto")
+    if server is None:
+        # niente "già in esecuzione" per il servizio: riavvia.ps1 cerca quella frase nel log come errore
+        print("[servizio] Jarvis c'è già, esco." if modo == "servizio" else "Jarvis è già in esecuzione.")
         sys.exit(0)
     server.listen()
 
@@ -96,12 +123,43 @@ def unica_istanza(modo: str):
         while True:
             conn, _ = server.accept()
             with conn:
-                if conn.recv(16) == b"mostra":
+                richiesta = conn.recv(16)
+                if richiesta == b"cedi" and modo == "servizio":
+                    _cedi(conn, server)
+                elif richiesta in (b"mostra", b"cedi"):
                     _richiesta_in_anticipo.set()
                     for f in _su_richiesta:
                         f()
+                    try:
+                        conn.sendall(b"mostrato")
+                    except OSError:
+                        pass
 
     threading.Thread(target=ascolta, daemon=True).start()
+
+
+def _cedi(conn: socket.socket, server: socket.socket):
+    """Il servizio lascia il posto alla versione completa: aspetta la domanda in corso, conferma a Telegram i messaggi
+    già letti (se no la copia nuova li riceve di nuovo e risponde due volte), libera la porta ed esce."""
+    jarvis = _attivi.get("jarvis")
+    if jarvis is not None:
+        jarvis.lock.acquire(timeout=150)
+    bot = _attivi.get("bot")
+    if bot is not None and getattr(bot, "aggiornamento", None) is not None:
+        try:
+            import requests
+
+            requests.get(f"{bot.api}/getUpdates", params={"offset": bot.aggiornamento + 1, "timeout": 0}, timeout=20)
+        except Exception as e:
+            print(f"[servizio] offset di Telegram non confermato: {e}")
+    print(f"--- [servizio] cedo il posto al Jarvis completo {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    try:
+        conn.sendall(b"ceduto")
+    except OSError:
+        pass
+    server.close()
+    sys.stdout.flush()
+    os._exit(0)  # subito: i thread del bot e della pagina non devono rispondere più
 
 
 def avvia_telegram(jarvis, in_background: bool) -> bool:
@@ -112,11 +170,21 @@ def avvia_telegram(jarvis, in_background: bool) -> bool:
     from telegram_bot import BotTelegram
 
     bot = BotTelegram(jarvis, token, int(utente))
+    _attivi["bot"] = bot
     if in_background:
         threading.Thread(target=bot.avvia, daemon=True).start()
     else:
         bot.avvia()
     return True
+
+
+def avvia_web(jarvis):
+    try:
+        import web
+
+        web.avvia(jarvis)  # la chat nel browser, da fuori con Tailscale Funnel
+    except OSError as e:  # porta occupata: il resto di Jarvis deve partire lo stesso
+        print(f"[web] pagina non avviata: {e}")
 
 
 def avvia_voce(jarvis):
@@ -154,7 +222,9 @@ def main():
     if modo != "testo":
         unica_istanza(modo)
     print(f"--- avvio {time.strftime('%Y-%m-%d %H:%M:%S')} modo={modo}")
+    os.environ["JARVIS_MODO"] = modo  # backup.py: nel servizio il push su GitHub non ha le credenziali
     jarvis = Jarvis()
+    _attivi["jarvis"] = jarvis
     import diario
 
     # registrato qui e non in brain.py: le prove fatte importando brain non devono finire nel diario
@@ -171,6 +241,10 @@ def main():
                     print("Jarvis:", jarvis.chiedi(domanda))
         elif modo == "telegram":
             avvia_telegram(jarvis, in_background=False)
+        elif modo == "servizio":
+            avvia_web(jarvis)
+            if not avvia_telegram(jarvis, in_background=False):
+                threading.Event().wait()  # senza Telegram resta la pagina web
         elif modo == "voce":
             import voice
 
@@ -178,12 +252,7 @@ def main():
         else:
             avvia_telegram(jarvis, in_background=True)
             avvia_voce(jarvis)
-            try:
-                import web
-
-                web.avvia(jarvis)  # la chat nel browser, da fuori con Tailscale Funnel
-            except OSError as e:  # porta occupata: il resto di Jarvis deve partire lo stesso
-                print(f"[web] pagina non avviata: {e}")
+            avvia_web(jarvis)
             from gui import Finestra
 
             finestra = Finestra(jarvis)
