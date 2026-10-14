@@ -50,8 +50,13 @@ _PROMESSA = re.compile(r"\b(?:provvedo|procedo|rimedio)\b|\b(?:lo |le |li |la )?
 # ricerche al passato: possono riferirsi alle domande precedenti ("ho cercato solo su Ryanair" dopo esplora_voli)
 _RICERCA = re.compile(r"\bho (?:cercato|controllato|verificato|letto|trovato|guardato)\b", re.I)
 # kcal: Flash-Lite sbagliava di 100-150 kcal facendo i conti da solo (per questo c'è calcola_ricetta) e la riserva
-# Mistral le dava senza chiamarlo. Si controllano solo quando le fonti parlano di kcal (domande sul cibo)
+# Mistral le dava senza chiamarlo
 _KCAL = re.compile(rf"({_NUM})\s*(?:kcal|calorie)\b", re.I)
+# una differenza fra due valori delle fonti vale solo se la frase parla di quello che resta o che manca ("ti restano
+# 1490 kcal"): il 14/10 "un totale di 460 kcal" per il riso nero, inventato, passava come 740 (quota del pranzo) − 284
+# (la pasta di una ricetta precedente). Con una decina di numeri nelle fonti, le differenze coprivano quasi tutto
+_DIFFERENZA = re.compile(r"rest|manc|avanz|ancora|differenz|in più|in meno|sotto|sopra|oltre|margine|scart|"
+                         r"risparmi|deficit|eccesso|superat|sforat", re.I)
 # dubbio sugli ingredienti di una ricetta di Fit with Fun che non sono in dispensa e la risposta non nomina
 MANCANTI = "non hai detto che in casa non ci sono: "
 # giorno della settimana che non corrisponde alla data: la riserva Mistral sbagliava di un giorno 6 volte su 8
@@ -102,14 +107,20 @@ def _orari(testo: str) -> set[tuple[int, int]]:
 
 
 def _kcal_senza_fonte(risposta: str, tutto: str) -> list[str]:
+    """Le kcal della risposta che non stanno in nessuna fonte, solo quando le fonti parlano di kcal (domande sul cibo;
+    "una banana ha circa 90 kcal" detto a memoria va bene). Le somme non valgono mai: con gli ingredienti di una
+    ricetta quasi ogni numero inventato sarebbe la somma di due righe (il totale lo dà calcola_ricetta)."""
     fonte = [v for m in _KCAL.finditer(tutto) for v in _valori(m.group(1))]
     if not fonte:
         return []
-    # differenze di due valori: "ti restano 1490 kcal". Le somme no: con gli ingredienti di una ricetta quasi ogni
-    # numero inventato sarebbe la somma di due righe
-    calcolati = fonte + [abs(a - b) for a in fonte for b in fonte]
-    return [f"{m.group(1)} kcal" for m in _KCAL.finditer(risposta)
-            if not any(abs(v - c) <= max(5.0, 0.03 * c) for v in _valori(m.group(1)) for c in calcolati)]
+    differenze = [abs(a - b) for a in fonte for b in fonte]
+    dubbi = []
+    for m in _KCAL.finditer(risposta):
+        frase = re.split(r"[.!?;:]\s", risposta[max(0, m.start() - 80):m.start()])[-1]
+        ammessi = fonte + differenze if _DIFFERENZA.search(frase) else fonte
+        if not any(abs(v - c) <= max(5.0, 0.03 * c) for v in _valori(m.group(1)) for c in ammessi):
+            dubbi.append(f"{m.group(1)} kcal")
+    return dubbi
 
 
 def _oggi() -> datetime.date:  # le prove la sostituiscono
@@ -225,6 +236,9 @@ def correzione(dubbi: list[str]) -> str:
                   f"{'; '.join(dati)}. Se servono, chiama lo strumento che li verifica. Altrimenti riscrivi la "
                   "risposta senza quei dati e di' chiaramente cosa non hai controllato. Non dire di aver fatto azioni "
                   "che non hai fatto con uno strumento.")
+    if any(d.endswith(" kcal") for d in dati):
+        testo += (" Le kcal di una ricetta non si stimano: chiama calcola_ricetta con gli ingredienti a crudo e i "
+                  "grammi, e riporta il suo totale.")
     if mancanti:
         testo += (f" La ricetta che citi chiede ingredienti che l'utente non ha in casa: {', '.join(mancanti)}. "
                   "Riscrivi la risposta dicendolo per ognuno (anche se l'hai tolto o sostituito, e con cosa).")

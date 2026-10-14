@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from html import unescape
 from pathlib import Path
 
@@ -177,6 +178,9 @@ def _trova(nome: str, valori: dict) -> str | None:
     sue = {_radice(p) for p in re.findall(r"[a-zà-ù]{4,}", nome.lower())}
     migliore, punti = None, (0, False)
     for voce in valori:
+        # "olive" ha la radice di "d'oliva": il 14/10 30 g di olive contavano come olio, 270 kcal invece di circa 40
+        if voce.startswith("olio") and "olio" not in nome.lower():
+            continue
         parole = [_radice(p) for p in re.findall(r"[a-zà-ù]{4,}", voce)]
         p = (sum(r in sue for r in parole), bool(parole) and parole[0] in sue)
         if p > punti:
@@ -563,8 +567,11 @@ def ricette_fit_with_fun(cosa: str, pasto: str = "") -> str:
             # nessuna ricetta con tutte le parole: si cerca parola per parola e vincono quelle che ne hanno di più
             radici = {_radice(p) for p in parole}
             trovate = {}
-            for p in parole:
-                for r in _cerca_ricette(p, 20):
+            # in parallelo: una dopo l'altra, il 14/10 "riso nero" ha impiegato 26 s
+            with ThreadPoolExecutor(len(parole)) as gruppo:
+                per_parola = list(gruppo.map(lambda p: _cerca_ricette(p, 20), parole))
+            for risultati in per_parola:
+                for r in risultati:
                     testo = " ".join([r["name"]] + [i.get("name") or "" for i in r.get("ingredients_flat") or []])
                     punti = sum(radice in testo.lower() for radice in radici)
                     if punti and _adatta(r, pasto):

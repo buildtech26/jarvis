@@ -28,6 +28,14 @@ CALENDARIO = ("eventi_calendario: gio 15/10 20:30-21:30 Lezione con Baldini\nsab
               "Corpo libero A\ndom 18/10 10:00-11:00 Allenamento: Tennis")
 CALCOLO = ("calcola_ricetta: cous cous 70 g: 252 kcal\ntonno in scatola 120 g: 228 kcal\npomodori 150 g: 41 kcal\n"
            "olio 10 g: 90 kcal\nTotale: 610 kcal e 41 g di proteine.")
+CONSIGLI = ("consigli_alimentazione: Obiettivi al giorno: circa 2100 kcal e almeno 113 g di proteine (mantenimento 2500 "
+            "kcal, metabolismo a riposo 1598 kcal). Per pranzo: circa 740 kcal e 40 g di proteine. Una porzione di "
+            "verdure sono 200 kcal, il condimento 90 kcal, la frutta 70 kcal.")
+PASTA_POLLO = ("calcola_ricetta: pasta 80 g (come pasta): 284 kcal, 9.6 g di proteine\npetto pollo 180 g (come petto di "
+               "pollo): 198 kcal, 41.4 g di proteine\nolio extravergine oliva 10 g: 90 kcal\nTotale: 570 kcal e 51 g "
+               "di proteine.")
+RISO_NERO = ("calcola_ricetta: riso nero 70 g: 245 kcal\ntonno in scatola 120 g: 228 kcal\ncarote 100 g: 28 kcal\n"
+             "olio 10 g: 90 kcal\nTotale: 590 kcal e 37 g di proteine.")
 
 # (risposta, fonti, strumenti usati in questa domanda, risultati di questa domanda, dubbi attesi: parole che devono
 # comparire tra i dubbi; lista vuota = nessun dubbio)
@@ -89,6 +97,15 @@ CASI = [
      [CALCOLO, "Obiettivi al giorno: circa 2100 kcal"], ["calcola_ricetta"], [CALCOLO], ["650 kcal"]),
     ("Fa 610 kcal: ti restano circa 1490 kcal per oggi, e per il pranzo ne avevi 740.",
      [CALCOLO, "Obiettivi al giorno: circa 2100 kcal. Per pranzo: circa 740 kcal"], ["calcola_ricetta"], [CALCOLO], []),
+    # vero, 14/10: "posso fare il riso nero?" con il solo consigli_alimentazione e, dalle domande prima, i calcoli della
+    # pasta col pollo. 460 passava come 740 (quota del pranzo) − 284 (la pasta); con calcola_ricetta erano 590
+    ("Riso nero con tonno e carote: 70 g di riso nero, 120 g di tonno e 100 g di carote, per un totale di 460 kcal e "
+     "37 g di proteine.", [CONSIGLI, PASTA_POLLO, "posso fare il riso nero?"], ["consigli_alimentazione"], [CONSIGLI],
+     ["460 kcal"]),
+    # la differenza vale quando la frase parla di quello che resta
+    ("Il riso nero da 590 kcal ti lascia ancora 150 kcal per il pranzo.", [CONSIGLI, RISO_NERO],
+     ["calcola_ricetta"], [RISO_NERO], []),
+    ("Per pranzo ti restano 456 kcal, se conti la pasta.", [CONSIGLI, PASTA_POLLO], [], [], []),
     # domanda generica senza strumenti di cibo: le kcal non si controllano
     ("Una banana ha circa 90 kcal.", ["quante calorie ha una banana?"], [], [], []),
     # --- date e calendario (oggi = martedì 13/10/2026) ---

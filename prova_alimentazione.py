@@ -189,6 +189,12 @@ def main() -> int:
            and "olio extravergine oliva 5 g (come olio extravergine d'oliva): 45 kcal" in r and "uova 100 g (come uova)" in r and "(come verdure)" in r
            and "Non contati (non sono né nella tabella della nota né su Open Food Facts, o manca la quantità): skyr 100"
            in r, "tabella per i nomi uguali, Open Food Facts per gli altri", r)
+    # vero, 14/10: le olive avevano la radice di "d'oliva" e valevano come olio (30 g = 270 kcal invece di circa 50)
+    chiesti_a_open_food.clear()
+    r = alimentazione.calcola_ricetta("olive 30, olive nere 20, olio 10")
+    atteso("olive 30 g (come olio" not in r and "olive nere 20 g (come olio" not in r
+           and sorted(chiesti_a_open_food) == ["olive", "olive nere"] and "olio 10 g (come olio extravergine d'oliva)" in r,
+           "le olive non sono olio", r)
     for nome, prodotto, giusto in [("olio extravergine di oliva", "Olio extra vergine di oliva", True),
                                    ("olio extravergine di oliva", "Focaccelle con olio extravergine di oliva", False),
                                    ("mozzarella light", "Santa Lucia Mozzarella Light Tris", True),
