@@ -12,7 +12,9 @@ import mancante in brain.py faceva fallire ogni domanda con strumenti, e Jarvis 
 
 Chiude TUTTE le copie di main.py: Stop-ScheduledTask ferma solo quella partita dall'attività, non quella aperta
 dall'icona del desktop (modo=mostra), e la nuova copia scriveva "Jarvis è già in esecuzione" lasciando attivo il
-codice vecchio. Riparte con il pythonw.exe di uv (vedi l'inizio di main.py), poi aspetta nel log la riga
+codice vecchio. La copia "servizio" avviata da "Jarvis sorveglia" gira nella sessione 0 e da qui non si vede
+(CommandLine vuota): "Chiuse 0 copie" è normale, la copia nuova le chiede "cedi" e prende il suo posto (provato il
+14/10). Riparte con il pythonw.exe di uv (vedi l'inizio di main.py), poi aspetta nel log la riga
 "Bot Telegram attivo" o un traceback. Con -DaTelegram un riavvio fallito viene segnalato su Telegram: la conferma
 di un riavvio riuscito la manda invece il bot appena ripartito (riavvio.json).
 #>
