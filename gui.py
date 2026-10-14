@@ -32,7 +32,9 @@ ERRORE = "#f47067"
 # barra del titolo di Windows (quella con il nome e i pulsanti chiudi/riduci)
 TITOLO = "J.A.R.V.I.S."
 BARRA = PANNELLO
-BARRA_TESTO = TESTO
+# scritta dello stesso colore della barra: nella finestra il nome non si vede (scelta dell'utente),
+# ma il titolo resta per Alt+Tab e la barra delle applicazioni
+BARRA_TESTO = BARRA
 
 # luminosità della sfera: a riposo appena visibile, poi i passi della pulsazione mentre lavora
 RIPOSO = 0.18
