@@ -48,7 +48,8 @@ def saluto() -> tuple:
     ora = time.localtime().tm_hour
     # dopo mezzanotte l'ora è 0-4: senza il 13 <= ora diceva "Buon pomeriggio"
     testo = "Buongiorno" if 5 <= ora < 13 else "Buon pomeriggio" if 13 <= ora < 18 else "Buonasera"
-    return ("Jarvis", f"{testo}, Mattia. Scrivi qui, oppure premi il microfono e parla.", "jarvis", "")
+    # la virgola serve: mostra() riconosce il saluto da ciò che sta prima
+    return ("Jarvis", f"{testo}, Mattia", "jarvis", "")
 
 
 def _pulsante(lato: int, tipo: str, stato: str) -> ImageTk.PhotoImage:
@@ -165,8 +166,8 @@ class Finestra:
     def _costruisci(self):
         testata = tk.Frame(self.root, bg=PANNELLO, padx=self._px(16), pady=self._px(10))
         testata.pack(fill="x")
-        # niente nome in alto (scelta dell'utente): resta solo lo stato
-        self.stato = tk.Label(testata, text="pronto", font=self.f_piccolo, fg=TENUE, bg=PANNELLO)
+        # niente nome in alto (scelta dell'utente): resta solo lo stato, vuoto a riposo
+        self.stato = tk.Label(testata, text="", font=self.f_piccolo, fg=TENUE, bg=PANNELLO)
         self.stato.pack(side="left")
         self.btn_voce = tk.Button(
             testata, font=self.f_piccolo, relief="flat", bd=0, padx=8, pady=2, cursor="hand2",
@@ -419,7 +420,7 @@ class Finestra:
                     self._imposta_stato(dato, ACCENTO)
                 elif tipo == "fine":
                     self.occupato = False
-                    self._imposta_stato("pronto")
+                    self._imposta_stato("")
                 elif tipo == "trascritto":
                     self._fine_ascolto()
                     if dato:
