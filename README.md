@@ -1,114 +1,120 @@
 # Jarvis
 
-Assistente personale: finestra di chat (Alt+J), bot Telegram e pagina web. Cervello: Gemini
-(piano gratuito, `GEMINI_API_KEY` nel `.env`), con tre modelli Gemini a rotazione. Se non risponde nessuno, passa
-alla riserva Mistral (`riserva.py`, `MISTRAL_API_KEY`, account gratuito, ministral-14b). La riserva risponde con l'etichetta "(modello di riserva)" e non tocca calendario, promemoria e
-pianificazione degli allenamenti, perché sbaglia i giorni della settimana. Se non risponde nemmeno lei, Jarvis spiega
-l'errore. Ollama locale è stato tolto il 2026-10-03 (lento e impreciso su questo PC). La voce ("Hey Jarvis",
-risposte parlate, microfono nella finestra, vocali su Telegram) è stata tolta il 2026-10-14 su richiesta dell'utente.
+Personal assistant: chat window (Alt+J), Telegram bot and web page. Brain: Gemini
+(free tier, `GEMINI_API_KEY` in `.env`), with three Gemini models in rotation. If none of them responds, it falls back
+to Mistral (`riserva.py`, `MISTRAL_API_KEY`, free account, ministral-14b). The fallback labels its replies
+"(modello di riserva)" and leaves calendar, reminders and workout planning alone, because it gets the weekdays wrong.
+If the fallback doesn't respond either, Jarvis explains the error. Local Ollama was removed on 2026-10-03 (slow and
+inaccurate on this PC). Voice ("Hey Jarvis", spoken replies, the microphone in the window, Telegram voice messages)
+was removed on 2026-10-14 at the user's request.
 
-## Avvio
+Jarvis talks in Italian: commands, button labels and replies are in Italian and are quoted as such below.
+
+## Running
 
 ```
-uv run main.py testo      # chat da terminale, per provare
-uv run main.py telegram   # solo bot
-uv run main.py            # finestra + Telegram + pagina web (è quello che avvia l'attività automatica)
+uv run main.py testo      # terminal chat, for testing
+uv run main.py telegram   # bot only
+uv run main.py            # window + Telegram + web page (what the scheduled task starts)
 ```
 
 ## Telegram
 
-1. Su Telegram scrivi a @BotFather → `/newbot` → copia il token.
-2. Copia `.env.example` in `.env` e incolla il token in `TELEGRAM_TOKEN`.
-3. Avvia `uv run main.py telegram` e scrivi al bot: ti risponde con il tuo ID.
-4. Metti quell'ID in `TELEGRAM_UTENTE` e riavvia. Il bot ignora chiunque altro.
+1. On Telegram, message @BotFather → `/newbot` → copy the token.
+2. Copy `.env.example` to `.env` and paste the token into `TELEGRAM_TOKEN`.
+3. Start `uv run main.py telegram` and message the bot: it replies with your ID.
+4. Put that ID in `TELEGRAM_UTENTE` and restart. The bot ignores everyone else.
 
-Funziona finché il PC è acceso e lo script gira.
+It works as long as the PC is on and the script is running.
 
-## Finestra di chat
+## Chat window
 
-**Alt+J** apre e chiude la chat da qualsiasi programma; Esc o la X la nascondono (Jarvis resta attivo).
-L'icona **Jarvis** sul desktop la apre col mouse (`crea_icona.py` la ricrea). Nella finestra: "Nuova" per azzerare
-la conversazione. Mostra anche gli scambi fatti su Telegram e sulla pagina web: la conversazione è una sola. Codice in
-`gui.py`. Lo sfondo è tinta unita (la sfera centrale è stata tolta su scelta dell'utente): mentre Jarvis pensa lo dice
-la scritta di stato in alto.
+**Alt+J** opens and closes the chat from any program; Esc or the X hide it (Jarvis keeps running).
+The **Jarvis** desktop icon opens it with the mouse (`crea_icona.py` recreates it). In the window, "Nuova" resets
+the conversation. It also shows the exchanges made on Telegram and on the web page: there is a single conversation.
+Code in `gui.py`. The background is a flat colour (the central sphere was removed by the user's choice); while Jarvis
+is thinking, the status line at the top says so. The input bar is a pill, like Gemini's, with the send arrow inside.
 
-## Avvio automatico
+## Automatic start
 
-L'attività "Jarvis" nell'Utilità di pianificazione avvia `main.py --log` (finestra nascosta + Telegram) 30 s dopo
-l'accesso a Windows e lo riavvia se si chiude. L'output finisce in `jarvis.log`.
+The "Jarvis" task in Task Scheduler starts `main.py --log` (hidden window + Telegram) 30 s after logging in to
+Windows and restarts it if it closes. Output goes to `jarvis.log`.
 
-    Stop-ScheduledTask Jarvis      # fermarlo (es. per avviarlo a mano mentre lo modifichi)
-    Start-ScheduledTask Jarvis     # farlo ripartire dopo una modifica al codice
+    Stop-ScheduledTask Jarvis      # stop it (e.g. to run it by hand while editing it)
+    Start-ScheduledTask Jarvis     # start it again after a code change
 
-## Comandi Telegram
+## Telegram commands
 
-- `/nuova` azzera la conversazione
-- `/promemoria` elenca i promemoria
-- `/schermo` manda uno screenshot del PC
-- `/invia N` spedisce la bozza di mail N: Jarvis prepara le mail ma non può inviarle da solo
-- una **foto** (o un'immagine mandata come file, a qualità piena: meglio per lavagne e documenti) viene letta da
-  Gemini e salvata in Obsidian; se la didascalia è una domanda Jarvis risponde
-- `/consumi` richieste Gemini del giorno di quota (dalle 9 alle 9) per modello e ricerche SerpApi rimaste
-- `/controllo` prova subito tutti i servizi esterni e dice quali funzionano (lo stesso controllo gira da solo
-  alle 8 e scrive solo se qualcosa è rotto)
-- `/treni` treni seguiti per gli avvisi di ritardo
+- `/nuova` resets the conversation
+- `/promemoria` lists the reminders
+- `/schermo` sends a screenshot of the PC
+- `/invia N` sends email draft N: Jarvis prepares emails but cannot send them on its own
+- a **photo** (or an image sent as a file, at full quality: better for whiteboards and documents) is read by
+  Gemini and saved to Obsidian; if the caption is a question, Jarvis answers it
+- `/consumi` Gemini requests for the current quota day (9 am to 9 am) per model, and SerpApi searches left
+- `/controllo` tests all external services right away and says which ones work (the same check runs by itself
+  at 8 am and only writes if something is broken)
+- `/treni` trains being followed for delay alerts
 
-## File
+## Files
 
-- `quota.py`: ordine dei modelli Gemini (3.5-flash-lite, 3.1-flash-lite, 3.6-flash; cambiabile con `GEMINI_MODEL`)
-  e pause dopo un 429. Il limite al minuto vale per modello: quello colpito resta fermo per il `retryDelay` indicato
-  da Google mentre rispondono gli altri; se sono tutti fermi, si aspetta fino a 20 s. Un 429 giornaliero esclude
-  il modello fino alle 9
-- `brain.py`: dialogo con il modello, comandi diretti ("apri", "cerca", "che ore sono"), ripiego sulla ricerca web
-- `tools.py`: strumenti (web, notizie, meteo, app, siti, file, volume, musica, blocco schermo). Le app conosciute sono nel dizionario `APP`
-- `telegram_bot.py`: long polling, accetta testo, foto e documenti (ai vocali risponde di scrivere), consegna i
-  promemoria ogni 20 s
-- `promemoria.py`: promemoria in `promemoria.json`; quelli scaduti a PC spento arrivano all'accensione, segnati "in ritardo"
-- `calendario.py` + `calendario.gs`: Google Calendar tramite una web app Apps Script (script.google.com, progetto
-  "Jarvis Calendario"); se modifichi il `.gs` serve "Gestisci deployment → Modifica → Nuova versione", altrimenti l'URL
-  continua a servire la versione vecchia
-- `memoria.py`: memoria permanente in `Desktop\obsidian\Jarvis\Memoria.md` (cambiabile con `JARVIS_MEMORIA`),
-  riletta a ogni domanda, quindi le modifiche fatte a mano in Obsidian valgono subito. Se la frase inizia con
-  "ricordati/ricorda che…" e il modello non salva, salva comunque `brain.py`
-- `tools.cerca_nel_browser`: apre una ricerca in Chrome (Google, immagini, notizie, YouTube, Amazon, Maps, Wikipedia,
-  voli) quando l'utente vuole VEDERE i risultati; `cerca_web` invece cerca in background e risponde a parole
-- `articoli.py`: articoli salvati col Web Clipper di Chrome in `Desktop\obsidian\Jarvis\Articoli` (nel Clipper:
-  Impostazioni → modello Default → posizione della nota `Jarvis/Articoli`); ricerca per parole chiave
-- `diario.py`: diario delle conversazioni, una nota al giorno in `Desktop\obsidian\Jarvis\Diario`, scritta a ogni
-  scambio (registrato in `main.py`, così le prove che importano solo `brain` non ci finiscono)
-- `voli.py`: Google Flights via SerpApi (`SERPAPI_KEY`, 250 ricerche/mese gratis), riserva sull'API pubblica Ryanair;
-  le ricerche identiche restano in memoria 30 minuti. Scartata la libreria `fast-flights`: dava risultati incompleti
-  (mancavano i diretti low cost)
-- `treni.py`: orari e prezzi reali Trenitalia dall'API non ufficiale di lefrecce.it (nessuna chiave); con
-  `arrivare_entro` trova i treni per arrivare in tempo, ad es. alla stazione "Fiumicino Aeroporto" per un volo.
-  Italo non è incluso (nessuna API pubblica). Aggiunto il 2026-10-03 perché Jarvis inventava orari dei treni
-- `mappe.distanza`: km e tempo in auto, a piedi o in bici, calcolati senza chiave. I luoghi li trova Photon
-  (photon.komoot.io, capisce i nomi a parole; Nominatim di riserva, vuole indirizzi precisi), con una leggera
-  preferenza per Bologna; il percorso lo fa OSRM su routing.openstreetmap.de (il server demo di OSRM conosce solo
-  l'auto). Photon trova sempre qualcosa, anche per nomi sbagliati ("stazione di Bologna Centrale" → Roveri): la
-  risposta nomina i luoghi trovati e chiede al modello di accorgersene. Per bus e treni i tempi non ci sono
-- `parcheggio.py`: su Telegram il pulsante fisso "📍 Ho parcheggiato" (`request_location`) manda il GPS; il bot lo
-  salva in `parcheggio.json` (uno solo, l'indirizzo con Photon reverse: Nominatim nei parchi dà solo il quartiere).
-  `nota_parcheggio` aggiunge piano/posto, `dove_ho_parcheggiato` risponde e il bot manda dopo il segnaposto
-  (`sendLocation`) se lo strumento è stato usato. Il pulsante si presenta una volta (`pulsante_mostrato`) e con /start
-- `tools.mostra_percorso`: apre Google Maps sul percorso (`maps/dir/?api=1&origin=…&destination=…&travelmode=…`),
-  anche con i mezzi pubblici; senza partenza usa la posizione attuale
-- `tools.mostra_voli` / `tools.mostra_treni`: aprono in Chrome la pagina con la ricerca già fatta. Google Flights
-  usa il link esatto restituito da SerpApi (senza ricerca in più se la stessa è in memoria); Ryanair ha un link
-  diretto ai risultati (un aeroporto per lato). Trenitalia apre il modulo compilato
-  (`#/white-label/?departureStation=…&arrivalStation=…&departureDate=GG-MM-AAAA&departureTime=HH`) ma serve un clic
-  su Cerca: nessun indirizzo porta direttamente ai risultati. I nomi di stazione devono essere quelli esatti di
-  Trenitalia, per questo passano da `treni._stazione`
-- `ritardi.py`: ritardo, posizione e binario in tempo reale da ViaggiaTreno (RFI, gratuito, anche Italo). I treni
-  seguiti stanno in `treni_seguiti.json`: il bot li controlla ogni 5 minuti da 90 minuti prima della partenza e
-  scrive su Telegram se il ritardo cambia di almeno 5 minuti, se esce o cambia il binario, se il treno è cancellato.
-  ViaggiaTreno conosce solo i treni del giorno
-- `tper.py`: bus TPER in tempo reale da HelloBus. Le fermate si cercano per nome nell'elenco open data TPER
-  (`fermate_tper.csv`, riscaricato ogni settimana); TPER tronca i nomi a 25 caratteri ("PORTA SARAGOZZA - RISORGI"),
-  per questo la ricerca accetta parole troncate
-- `quota.py` conta anche le richieste Gemini in `consumi.json` (ultimi 14 giorni): Google non espone il residuo via API
-- `foto.py`: foto da Telegram → `Desktop\obsidian\raw` (cambiabile con `JARVIS_FOTO`), l'inbox della knowledge base
-  descritta in `obsidian\claude.md`: immagine + nota con descrizione e trascrizione (formule in LaTeX), che Claude
-  poi compila in `wiki/`. Jarvis non scrive mai in `wiki/`. La foto entra anche nella conversazione (con il testo
-  trascritto) e nel diario
-- `posta.py`: Gmail via IMAP/SMTP con password per le app; bozze in `bozze.json` e nelle Bozze di Gmail
+- `quota.py`: order of the Gemini models (3.5-flash-lite, 3.1-flash-lite, 3.6-flash; configurable with
+  `GEMINI_MODEL`) and pauses after a 429. The per-minute limit is per model: the one that was hit stays paused for the
+  `retryDelay` given by Google while the others answer; if they are all paused, it waits up to 20 s. A daily 429
+  excludes the model until 9 am
+- `brain.py`: dialogue with the model, direct commands ("apri", "cerca", "che ore sono"), fallback to web search
+- `tools.py`: tools (web, news, weather, apps, sites, files, volume, music, screen lock). Known apps are in the `APP`
+  dictionary
+- `telegram_bot.py`: long polling, accepts text, photos and documents (replies to voice messages asking for text),
+  delivers reminders every 20 s
+- `promemoria.py`: reminders in `promemoria.json`; those that fall due while the PC is off arrive at startup, marked
+  "in ritardo" (late)
+- `calendario.py` + `calendario.gs`: Google Calendar through an Apps Script web app (script.google.com, project
+  "Jarvis Calendario"); if you change the `.gs` you need "Manage deployments → Edit → New version", otherwise the URL
+  keeps serving the old version
+- `memoria.py`: long-term memory in `Desktop\obsidian\Jarvis\Memoria.md` (configurable with `JARVIS_MEMORIA`),
+  reread at every question, so edits made by hand in Obsidian apply immediately. If the sentence starts with
+  "ricordati/ricorda che…" ("remember that…") and the model doesn't save it, `brain.py` saves it anyway
+- `tools.cerca_nel_browser`: opens a search in Chrome (Google, images, news, YouTube, Amazon, Maps, Wikipedia,
+  flights) when the user wants to SEE the results; `cerca_web` instead searches in the background and answers in words
+- `articoli.py`: articles saved with Chrome's Web Clipper in `Desktop\obsidian\Jarvis\Articoli` (in the Clipper:
+  Settings → Default template → note location `Jarvis/Articoli`); keyword search
+- `diario.py`: conversation journal, one note per day in `Desktop\obsidian\Jarvis\Diario`, written at every exchange
+  (registered in `main.py`, so tests that only import `brain` don't end up in it)
+- `voli.py`: Google Flights via SerpApi (`SERPAPI_KEY`, 250 free searches/month), with the public Ryanair API as
+  fallback; identical searches stay cached for 30 minutes. The `fast-flights` library was discarded: its results
+  were incomplete (low-cost direct flights were missing)
+- `treni.py`: real Trenitalia times and prices from the unofficial lefrecce.it API (no key); with `arrivare_entro` it
+  finds trains that arrive in time, e.g. at "Fiumicino Aeroporto" station for a flight. Italo is not included (no
+  public API). Added on 2026-10-03 because Jarvis was making up train times
+- `mappe.distanza`: km and time by car, on foot or by bike, computed without a key. Places are found by Photon
+  (photon.komoot.io, understands names in words; Nominatim as fallback, wants precise addresses), with a slight
+  preference for Bologna; routing is done by OSRM on routing.openstreetmap.de (the OSRM demo server only knows cars).
+  Photon always finds something, even for wrong names ("stazione di Bologna Centrale" → Roveri): the answer names the
+  places found and asks the model to notice. No times for buses and trains
+- `parcheggio.py`: on Telegram the fixed "📍 Ho parcheggiato" ("I parked") button (`request_location`) sends the GPS
+  position; the bot saves it in `parcheggio.json` (only one, with the address from Photon reverse: in parks Nominatim
+  only gives the neighbourhood). `nota_parcheggio` adds floor/space, `dove_ho_parcheggiato` answers, and the bot then
+  sends the pin (`sendLocation`) if the tool was used. The button is shown once (`pulsante_mostrato`) and with /start
+- `tools.mostra_percorso`: opens Google Maps on the route (`maps/dir/?api=1&origin=…&destination=…&travelmode=…`),
+  public transport included; without a starting point it uses the current location
+- `tools.mostra_voli` / `tools.mostra_treni`: open the page in Chrome with the search already done. Google Flights
+  uses the exact link returned by SerpApi (no extra search if the same one is cached); Ryanair has a direct link to
+  the results (one airport per side). Trenitalia opens the filled-in form
+  (`#/white-label/?departureStation=…&arrivalStation=…&departureDate=DD-MM-YYYY&departureTime=HH`) but needs a click
+  on Search: no URL leads straight to the results. Station names must be Trenitalia's exact ones, which is why they go
+  through `treni._stazione`
+- `ritardi.py`: real-time delay, position and platform from ViaggiaTreno (RFI, free, Italo included). Followed trains
+  are kept in `treni_seguiti.json`: the bot checks them every 5 minutes starting 90 minutes before departure and writes
+  on Telegram if the delay changes by at least 5 minutes, if the platform is announced or changes, or if the train is
+  cancelled. ViaggiaTreno only knows the current day's trains
+- `tper.py`: real-time TPER buses from HelloBus. Stops are searched by name in TPER's open data list
+  (`fermate_tper.csv`, downloaded again every week); TPER truncates names to 25 characters ("PORTA SARAGOZZA -
+  RISORGI"), which is why the search accepts truncated words
+- `quota.py` also counts Gemini requests in `consumi.json` (last 14 days): Google doesn't expose the remaining quota
+  through an API
+- `foto.py`: photos from Telegram → `Desktop\obsidian\raw` (configurable with `JARVIS_FOTO`), the inbox of the
+  knowledge base described in `obsidian\claude.md`: image + note with description and transcription (formulas in
+  LaTeX), which Claude then compiles into `wiki/`. Jarvis never writes to `wiki/`. The photo also enters the
+  conversation (with the transcribed text) and the journal
+- `posta.py`: Gmail via IMAP/SMTP with an app password; drafts in `bozze.json` and in Gmail's Drafts
