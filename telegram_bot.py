@@ -232,6 +232,8 @@ class BotTelegram:
         if testo == "/backup":
             self.scrive(chat_id)
             problemi = backup.esegui()
+            if not problemi:
+                backup.fatto_ora()
             self.invia(chat_id, "💾 Backup fatto: zip cifrato in OneDrive e codice su GitHub." if not problemi
                        else "💾 Backup con problemi: " + "; ".join(problemi))
             return

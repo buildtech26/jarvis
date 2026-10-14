@@ -123,6 +123,20 @@ def esegui() -> list[str]:
     return problemi
 
 
+def segna_fatto(stato: dict, adesso: datetime.datetime):
+    """Un backup prima di ORA (il recupero di un giorno saltato, o /backup) vale per ieri: quello della sera deve
+    partire lo stesso, se no il riepilogo delle 21:30 e la dispensa scalata aspetterebbero fino al giorno dopo."""
+    giorno = adesso.date() if adesso.time() >= ORA else adesso.date() - datetime.timedelta(days=1)
+    stato["ultimo"] = max(stato.get("ultimo", ""), giorno.isoformat())
+
+
+def fatto_ora():
+    """Per /backup su Telegram: segna il backup appena riuscito."""
+    stato = _carica()
+    segna_fatto(stato, _adesso())
+    _salva(stato)
+
+
 def controlla() -> list[str]:
     """Per il bot, una volta al minuto: il backup di oggi dopo ORA, o subito se ieri è saltato. Messaggi solo per i
     problemi, al più uno al giorno."""
@@ -135,7 +149,7 @@ def controlla() -> list[str]:
     stato["tentato"] = adesso.strftime("%Y-%m-%d %H")  # dopo un errore si riprova l'ora dopo, non ogni minuto
     problemi = esegui()
     if not problemi:
-        stato["ultimo"] = oggi
+        segna_fatto(stato, adesso)
         print("[backup] fatto")
     else:
         print(f"[backup] problemi: {'; '.join(problemi)}")

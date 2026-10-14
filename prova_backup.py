@@ -76,6 +76,10 @@ def main() -> int:
     atteso(backup.controlla() == [] and len(push) == 1, "una volta sola al giorno")
     adesso[0] = datetime.datetime(2026, 10, 16, 9, 0)
     atteso(backup.controlla() == [] and len(push) == 2, "un giorno saltato (PC spento): subito al mattino")
+    # 14/10: il recupero del mattino vale per ieri, quello della sera parte lo stesso
+    adesso[0] = datetime.datetime(2026, 10, 16, 21, 50)
+    atteso(backup.controlla() == [] and len(push) == 3 and backup._carica()["ultimo"] == "2026-10-16",
+           "dopo il recupero, la sera di nuovo", backup._carica())
 
     # --- problemi: un messaggio al giorno, nuovo tentativo l'ora dopo ---
     del os.environ["BACKUP_PASSWORD"]
