@@ -207,7 +207,7 @@ def _pagina_web() -> str:
     in "NoState" e Funnel non rispondeva più, mentre la pagina su 127.0.0.1 andava: da qui non si vedeva."""
     r = requests.get(os.environ["WEB_INDIRIZZO"].strip(), timeout=15)
     r.raise_for_status()
-    if "J.A.R.V.I.S." not in r.text:
+    if "<title>Jarvis</title>" not in r.text:  # il nome non è più scritto nella pagina, solo nel titolo
         raise RuntimeError("risponde, ma non è la pagina di Jarvis")
     return "risponde"
 

@@ -67,9 +67,19 @@ async function aggiorna() {
   } catch (e) { /* rete assente o sessione scaduta: riprova al giro dopo */ }
 }
 
+// lo stesso saluto della finestra (gui.saluto), con l'ora del dispositivo
+function saluto() {
+  const ora = new Date().getHours();
+  const testo = ora >= 5 && ora < 13 ? "Buongiorno" : ora >= 13 && ora < 18 ? "Buon pomeriggio" : "Buonasera";
+  return `${testo}, Mattia`;
+}
+
 function mostraChat() {
   $("accesso").hidden = true; $("chat").hidden = false; $("esci").hidden = false;
-  aggiorna();
+  // il saluto va dopo la storia già scritta, come ultimo messaggio all'apertura
+  aggiorna().then(() => {
+    if (!document.querySelector(".bolla.saluto")) bolla("jarvis saluto", saluto());
+  });
   clearInterval(giro);
   giro = setInterval(aggiorna, 3000);
   $("testo").focus();

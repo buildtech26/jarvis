@@ -66,7 +66,7 @@ def main() -> int:
 
     # --- pagina e intestazioni di sicurezza ---
     stato, intestazioni, corpo = richiesta("/")
-    atteso(stato == 200 and b"J.A.R.V.I.S." in corpo and "default-src 'self'" in intestazioni["Content-Security-Policy"]
+    atteso(stato == 200 and b"<title>Jarvis</title>" in corpo and "default-src 'self'" in intestazioni["Content-Security-Policy"]
            and intestazioni["X-Frame-Options"] == "DENY", "pagina e intestazioni", (stato, dict(intestazioni)))
     stato, intestazioni, corpo = richiesta("/manifest.webmanifest")
     icone = [i["src"] for i in json.loads(corpo)["icons"]] if stato == 200 else []
