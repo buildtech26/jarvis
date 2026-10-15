@@ -46,9 +46,10 @@ def main() -> int:
            "linee guida senza impostazioni")
 
     imp = alimentazione._impostazioni(nota.read_text(encoding="utf-8"))
-    atteso(imp["nascita"] == "2006-03-01" and imp["attività"] == "1.55", "impostazioni lette", imp)
+    atteso(imp["nascita"] == "" and imp["attività"] == "1.55", "impostazioni lette", imp)
+    imp["nascita"] = "2006-03-01"  # data finta: il modello la lascia vuota
     atteso(alimentazione._eta(imp["nascita"], oggi) == 20, "età prima e dopo il compleanno")
-    atteso(alimentazione._eta(imp["nascita"], datetime.date(2027, 2, 12)) == 20, "età il giorno prima del compleanno")
+    atteso(alimentazione._eta(imp["nascita"], datetime.date(2027, 2, 28)) == 20, "età il giorno prima del compleanno")
 
     # 80 kg, 180 cm, M, 20 anni: riposo 1830, mantenimento 2836, −400 = 2436 → 2450; proteine 80 × 1,8 = 144
     m80 = {**imp, "peso": "80 kg", "altezza": "180", "sesso": "m"}
@@ -79,7 +80,7 @@ def main() -> int:
 
     # --- con Cronometer (finto) ---
     testo = nota.read_text(encoding="utf-8")
-    for chiave, valore in [("peso", "80"), ("altezza", "180"), ("sesso", "M")]:
+    for chiave, valore in [("peso", "80"), ("altezza", "180"), ("sesso", "M"), ("nascita", "2006-03-01")]:
         testo = testo.replace(f"- {chiave}: \n", f"- {chiave}: {valore}\n")
     nota.write_text(testo, encoding="utf-8")
     domenica = datetime.date(2026, 10, 18)

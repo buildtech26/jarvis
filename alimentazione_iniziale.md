@@ -11,7 +11,7 @@ Scheda).
 - peso: 
 - altezza: 
 - sesso: 
-- nascita: 2006-03-01
+- nascita: 
 - attività: 1.55
 - deficit: 400
 - proteine per kg: 1.8
