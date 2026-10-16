@@ -10,6 +10,7 @@ import re
 import threading
 import time
 import unicodedata
+import webbrowser
 from pathlib import Path
 
 import requests
@@ -301,26 +302,45 @@ _VUOTE = {"come", "cosa", "che", "del", "della", "dei", "delle", "nel", "nella",
           "avevo", "scritto", "dice", "spiegami", "parla", "cerca", "trova", "allo", "alla", "sul", "sulla", "dai"}
 
 
+_MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre",
+         "novembre", "dicembre"]
+_DATA = re.compile(r"\b(\d{1,2})(?:\s*[/.-]\s*(\d{1,2})\b|\s+(?:di\s+)?(" + "|".join(_MESI) + r"))(?:\s*[/.-]?\s*\d{4})?")
+
+
+def _date(testo: str) -> tuple[list[str], str]:
+    """Le date del testo nel formato dei titoli delle lezioni ('15 ottobre', '15-10' → '15/10'; '8/10' → '08/10')
+    e il testo senza le date. Senza questo "15" era troppo corto per contare e "ottobre" non compare nei titoli."""
+    date = []
+    for m in _DATA.finditer(testo):
+        mese = int(m.group(2)) if m.group(2) else _MESI.index(m.group(3)) + 1
+        if 1 <= int(m.group(1)) <= 31 and 1 <= mese <= 12:
+            date.append(f"{int(m.group(1)):02d}/{mese:02d}")
+    return date, _DATA.sub(" ", testo)
+
+
 def cerca_notion(cosa: str) -> str:
-    """Cerca negli appunti e nelle guide allo studio dell'utente su Notion, sia nei titoli sia DENTRO il testo.
-    Restituisce i pezzi di testo più pertinenti con la pagina da cui vengono: spesso bastano per rispondere;
-    per la pagina intera usa leggi_notion con l'id.
+    """Cerca negli appunti, nelle guide allo studio e nelle lezioni trascritte dell'utente su Notion, sia nei titoli
+    sia DENTRO il testo. Restituisce i pezzi di testo più pertinenti con la pagina da cui vengono: spesso bastano per
+    rispondere; per la pagina intera usa leggi_notion con l'id, per aprirla sullo schermo apri_notion.
 
     Args:
-        cosa: argomento o parole chiave, es. 'formula di Willis', 'rotismi epicicloidali', 'mappe di Karnaugh'
+        cosa: argomento o parole chiave, es. 'formula di Willis', 'rotismi epicicloidali', 'lezione meccanica 15/10'
     """
     note = _note()
     if not note:
         return "La copia degli appunti non è ancora pronta (si crea qualche minuto dopo l'avvio di Jarvis)."
-    termini = [_radice(w) for w in re.findall(r"\w+", _normalizza(cosa)) if len(w) > 2 and w not in _VUOTE]
+    date, resto = _date(_normalizza(cosa))
+    termini = date + [_radice(w) for w in re.findall(r"\w+", resto) if len(w) > 2 and w not in _VUOTE]
     if not termini:
         return "Dimmi l'argomento da cercare negli appunti."
     candidati, percorsi = [], {}
     for meta, percorso, testo in note:
         id = meta["notion_id"]
         percorsi[id] = percorso
-        titolo = _normalizza(meta.get("titolo", ""))
-        bonus_titolo = sum(t in titolo for t in termini)
+        # anche le cartelle contano come titolo: la lezione del 15/10 non dice "meccanica", la sua cartella sì
+        titolo = _normalizza(meta.get("titolo", "") + " " + percorso)
+        # la data nel titolo della pagina stessa vale molto: altrimenti vinceva la cartella che elenca le lezioni
+        bonus_titolo = sum(t in titolo for t in termini) + 7 * sum(d in _normalizza(meta.get("titolo", "")) for d in date)
         for pezzo in _pezzi(testo):
             normale = _normalizza(pezzo)
             # una parola vale se è nel pezzo o nel titolo della pagina ("Laplace" nel titolo, "gradino" nel testo)
@@ -374,6 +394,25 @@ def leggi_notion(id: str, parte: int = 1) -> str:
     if len(blocchi) == 1:
         return testo[:3800]
     return f"[parte {parte} di {len(blocchi)}]\n{blocchi[parte - 1][:3700]}"
+
+
+def apri_notion(id: str) -> str:
+    """Apre una pagina di Notion sullo schermo del PC, nell'app Notion (l'id viene da cerca_notion). Usalo quando
+    l'utente chiede di APRIRE o far vedere una pagina, una lezione, una guida o un appunto di Notion; mai apri_sito
+    con notion.so, che nel browser porta alla pagina per scaricare l'app.
+
+    Args:
+        id: id della pagina
+    """
+    pulito = re.sub(r"[^0-9a-f]", "", id.lower())
+    if len(pulito) != 32:
+        return "Id non valido: prima trova la pagina con cerca_notion."
+    titolo = next((m.get("titolo", "") for m, _, _ in _note() if m["notion_id"].replace("-", "") == pulito), "")
+    try:
+        os.startfile(f"notion://www.notion.so/{pulito}")  # l'app (versione dello Store) registra notion://
+    except OSError:  # app non installata: nel browser
+        webbrowser.open(f"https://www.notion.so/{pulito}")
+    return f"Aperta su Notion: {titolo}" if titolo else "Aperta la pagina su Notion."
 
 
 def _riga_attivita(p: dict) -> str:
@@ -449,4 +488,4 @@ def completa_attivita(id: str) -> str:
     return "Fatta: " + _titolo(pagina)
 
 
-STRUMENTI = [cerca_notion, leggi_notion, attivita, aggiungi_attivita, completa_attivita]
+STRUMENTI = [cerca_notion, leggi_notion, apri_notion, attivita, aggiungi_attivita, completa_attivita]

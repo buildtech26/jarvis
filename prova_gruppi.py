@@ -46,6 +46,8 @@ CASI = [
     (["segna dentista venerdì alle 15"], "crea_evento"),
     (["sposta la riunione a domani"], "sposta_evento"),
     (["cosa c'è negli appunti di meccanica sui rotismi?"], "cerca_notion"),
+    # 16/10: senza apri_notion Gemini aveva aperto notion.so in Chrome (la pagina per scaricare l'app)
+    (["mi puoi aprire notion con la pagina delle lezione del 15 ottobre di meccanica"], "apri_notion"),
     (["aggiungi alle cose da fare la relazione di fisica"], "aggiungi_attivita"),
     (["ho finito la consegna di reti logiche"], "completa_attivita"),
     (["ho mail nuove?"], "leggi_mail"),

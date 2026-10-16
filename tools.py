@@ -251,6 +251,7 @@ APP = {
     "chrome": "chrome",
     "edge": "msedge",
     "spotify": "spotify:",
+    "notion": "notion://",  # app dello Store, senza .lnk nel menu Start: altrimenti "apri notion" andava su notion.so
     "word": "winword",
     "excel": "excel",
     "powerpoint": "powerpnt",

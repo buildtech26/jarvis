@@ -176,10 +176,12 @@ che i dati sono vecchi o mancano, dillo. Niente diagnosi mediche""",
     "notion": (
         r"notion|appunt|guid[ae]|attivit|da fare|to ?do|esam|consegn|scadenz|stud|materi|lezion|corso|"
         r"rotism|meccanic|controlli|reti logiche|completat|fatto il|ho finito",
-        ["cerca_notion", "leggi_notion", "attivita", "aggiungi_attivita", "completa_attivita"],
+        ["cerca_notion", "leggi_notion", "apri_notion", "attivita", "aggiungi_attivita", "completa_attivita"],
         """- Notion: per domande sugli appunti e le guide allo studio dell'utente usa cerca_notion con le parole chiave \
 (cerca anche dentro il testo); se i pezzi trovati non bastano, leggi_notion con l'id. Rispondi basandoti sul \
-testo letto e di' da quale pagina viene. To-do, esami, consegne, "cosa devo fare": \
+testo letto e di' da quale pagina viene. Per APRIRE una pagina ("aprimi su Notion la lezione del 15 ottobre di \
+meccanica"): cerca_notion con materia e data, poi apri_notion con l'id della pagina giusta; mai apri_sito su notion.so. \
+Le lezioni trascritte si intitolano "Lezione del GG/MM · argomento". To-do, esami, consegne, "cosa devo fare": \
 attivita, aggiungi_attivita, completa_attivita. "Aggiungi alle cose da fare" = attività Notion, non promemoria""",
     ),
     "mail": (
