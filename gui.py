@@ -369,6 +369,12 @@ class Finestra:
         self.campo.focus_set()
 
     def nascondi(self):
+        # scelta dell'utente (16/10): chiudere la finestra è come "Nuova", alla riapertura c'è solo il saluto.
+        # Con una domanda in corso no: la risposta arriverebbe in una chat vuota, senza la sua domanda
+        if not self.occupato:
+            self.jarvis.dimentica()
+            self.messaggi = [saluto()]
+            self._ridisegna()
         self.root.withdraw()
 
     def alterna(self):
